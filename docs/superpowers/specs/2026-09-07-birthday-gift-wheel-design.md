@@ -3,6 +3,21 @@
 Date: 2026-09-07
 Status: Approved for implementation
 
+> **Amendment (implementation-time, Task 1):** The database library was changed
+> from `better-sqlite3` to Node's built-in `node:sqlite` module (`DatabaseSync`),
+> and the session store from `connect-sqlite3` to a small custom SQLite-backed
+> store built on the same `node:sqlite` database. Reason: the actual development
+> machine this project is being built on has no Python/node-gyp toolchain, and
+> `better-sqlite3` (and `connect-sqlite3`'s native `sqlite3` dependency) could not
+> be installed reliably — two independent verification passes reproduced a total
+> `npm install` failure (not just a missing native binding; the whole dependency
+> tree failed to install). `node:sqlite` ships inside Node itself, requires no
+> native compilation, and was verified directly against this project's exact
+> query patterns before adopting it. Every other requirement below is unchanged;
+> every mention of `better-sqlite3`/`connect-sqlite3` in the sections that follow
+> should be read as `node:sqlite`/the custom store. See the implementation
+> plan's ledger for full verification detail.
+
 ## 1. Concept
 
 A funny, flashy, mobile-first birthday website. A guest enters their name, spins an
@@ -22,7 +37,7 @@ Monorepo with two workspaces, deployed as **one Node process**:
 ```
 birthday-gift-game/
   client/            Vite + React + Tailwind + Framer Motion (SPA)
-  server/            Express + better-sqlite3 (API + static file serving)
+  server/            Express + node:sqlite (API + static file serving)
   docs/              specs (this file)
   .env.example
   package.json       root scripts: dev (concurrently), build, start
@@ -48,7 +63,7 @@ at `/data`, with `SQLITE_PATH=/data/app.db` and `UPLOADS_DIR=/data/uploads` env 
 pointing at it. Without this, the database and images would be wiped on the next
 deploy — called out explicitly in the README as a required step, not optional.
 
-## 3. Data model (SQLite via better-sqlite3)
+## 3. Data model (SQLite via node:sqlite)
 
 ```sql
 CREATE TABLE admin_users (
@@ -80,6 +95,14 @@ CREATE TABLE settings (
   value TEXT NOT NULL
 );
 -- seeded rows: ('allow_repeat_gifts', 'false'), ('wheel_enabled', 'true')
+
+CREATE TABLE sessions (
+  sid     TEXT PRIMARY KEY,
+  data    TEXT NOT NULL,
+  expires INTEGER NOT NULL
+);
+-- backs the custom express-session Store (§5) in the same database file,
+-- so admin sessions survive server restarts without a second dependency.
 ```
 
 Relationships: `participants.gift_id` → `gifts.id` (many participants may reference
@@ -95,8 +118,11 @@ No migration framework needed at this scale.
 
 `POST /api/spin` body: `{ name: string }`.
 
-Executed inside one better-sqlite3 transaction (synchronous, so this is naturally
-atomic — no separate row locking needed):
+Executed inside one manual transaction (`BEGIN`/`COMMIT`/`ROLLBACK` via a small
+`runInTransaction(db, fn)` helper — `node:sqlite`'s `DatabaseSync` is synchronous
+like better-sqlite3 was, but has no built-in `.transaction()` convenience method,
+so this project wraps it explicitly). Being synchronous, this is naturally atomic
+with no separate row locking needed:
 
 1. Validate `name`: trimmed, 1–50 chars, rejected if empty after trim. Reject with
    400 + friendly message otherwise.
@@ -136,9 +162,11 @@ spin.
   password with bcrypt (cost 12) and insert the row. If `admin_users` already has a
   row, boot seeding is skipped entirely — env vars are never used to overwrite an
   existing account. There is no self-service admin registration endpoint.
-- Session-based auth: `express-session` with a SQLite-backed store
-  (`connect-sqlite3`), cookie flags `httpOnly: true`, `sameSite: 'lax'`, `secure:
-  true` in production (behind HTTPS on Render).
+- Session-based auth: `express-session` with a custom SQLite-backed `Store`
+  (a ~40-line `session.Store` subclass reading/writing the `sessions` table on
+  the same `node:sqlite` database — see amendment note above), cookie flags
+  `httpOnly: true`, `sameSite: 'lax'`, `secure: true` in production (behind
+  HTTPS on Render).
 - `POST /api/admin/login { username, password }` → bcrypt compare → regenerate
   session → set cookie. Rate-limited (see below).
 - `POST /api/admin/logout` destroys the session.
@@ -285,8 +313,8 @@ Get it here:
   `/api/spin` (e.g. 20 / min / IP — generous for party use, blunts scripted abuse).
 - **Zod** schemas validate every request body/query server-side (client-side
   validation is UX only, never trusted).
-- **SQL injection**: better-sqlite3 prepared statements with bound parameters
-  everywhere; no string-concatenated SQL.
+- **SQL injection**: `node:sqlite` prepared statements (`db.prepare(sql).run/get/all()`)
+  with bound `?` parameters everywhere; no string-concatenated SQL.
 - **File upload validation**: MIME allow-list + size cap (§6); filenames are
   server-generated UUIDs, never derived from user input, preventing path traversal.
 - **Secrets**: `SESSION_SECRET`, `ADMIN_USERNAME`, `ADMIN_PASSWORD` all via `.env`
@@ -335,6 +363,14 @@ UPLOADS_DIR=./server/data/uploads
 
 In production (Render), `SQLITE_PATH` and `UPLOADS_DIR` point at the mounted
 persistent disk (e.g. `/data/app.db`, `/data/uploads`).
+
+**Node version requirement:** `node:sqlite` does not exist before Node 22.5 and
+required an `--experimental-sqlite` flag on some versions in that range. This
+project targets **Node 24.x** for both local development and deployment (the
+version it was verified against directly, with no flag and no stderr warnings)
+— pin this explicitly in the host's Node version setting, not just via
+`package.json` `engines`, since hosts don't always default to a recent enough
+version on their own.
 
 ## 15. Out of scope / explicitly deferred
 
