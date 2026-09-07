@@ -108,7 +108,15 @@ CREATE TABLE sessions (
 Relationships: `participants.gift_id` → `gifts.id` (many participants may reference
 the same gift when `allow_repeat_gifts` is true; enforced at the application layer,
 not via a uniqueness constraint, so history is preserved even if a gift is later
-deactivated).
+deactivated). This reference is intentionally allowed to dangle if a gift row is
+later hard-deleted — `gift_id` keeps its original value rather than being nulled
+out, and joins resolve a missing gift gracefully (see §6). Because `node:sqlite`'s
+`DatabaseSync` enables `PRAGMA foreign_keys = ON` by default (unlike the SQLite C
+library's own default and unlike `better-sqlite3`), `initDb` explicitly runs
+`PRAGMA foreign_keys = OFF` to restore this application-level-only referential
+integrity — otherwise deleting a gift with participants attached raises a hard
+`FOREIGN KEY constraint failed` error instead of the graceful behavior this spec
+requires.
 
 Migrations: a single idempotent `initDb()` run on server boot using
 `CREATE TABLE IF NOT EXISTS` plus a `settings` upsert-if-missing for the two keys.

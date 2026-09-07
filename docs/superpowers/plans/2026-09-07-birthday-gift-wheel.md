@@ -21,6 +21,19 @@
 > `node:sqlite`-based implementation — this note exists only to explain why,
 > since the spec text still shows its original approval date. See the SDD
 > ledger for the full verification trail.
+>
+> **Second amendment (made during Task 20 execution):** `node:sqlite`'s
+> `DatabaseSync` enables `PRAGMA foreign_keys = ON` by default (verified:
+> `db.prepare('PRAGMA foreign_keys').get()` returns `{foreign_keys: 1}` on a
+> fresh connection) — unlike the SQLite C library's own default (off) and
+> unlike `better-sqlite3`. This silently broke `DELETE /api/admin/gifts/:id`
+> for any gift with participants attached (a hard `FOREIGN KEY constraint
+> failed` error), contradicting spec §6's explicit requirement that deleting
+> a gift preserve participants' historical `gift_id` value (not null it out).
+> Fix: `initDb` now explicitly runs `PRAGMA foreign_keys = OFF` right after
+> `PRAGMA journal_mode = WAL`, restoring the originally-intended
+> application-level-only referential integrity (dangling `gift_id` allowed,
+> resolved gracefully via the `LEFT JOIN` in `listParticipants`).
 
 ## Global Constraints
 
@@ -325,6 +338,7 @@ export function initDb(dbPath) {
   }
   const db = new DatabaseSync(dbPath);
   db.exec('PRAGMA journal_mode = WAL');
+  db.exec('PRAGMA foreign_keys = OFF');
   db.exec(`
     CREATE TABLE IF NOT EXISTS admin_users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
