@@ -67,6 +67,29 @@ test('rejects a non-image file', async () => {
   assert.equal(res.body.error.code, 'INVALID_FILE_TYPE');
 });
 
+test('rejects a text file renamed with an image extension and spoofed content-type', async () => {
+  // Regression test for a QA bug: a browser assigns Content-Type from a file's
+  // extension, not its real content, so a .txt file renamed to look like a .png
+  // arrives with contentType: 'image/png'. The server must not trust that header
+  // alone — it must sniff the actual bytes and reject non-image content.
+  const { app, uploadsDir } = buildApp();
+  const res = await request(app)
+    .post('/api/admin/gifts')
+    .field('name', 'Spoofed')
+    .field('productUrl', 'https://example.com/spoofed')
+    .field('active', 'true')
+    .attach('image', Buffer.from('just plain text, not a real image'), {
+      filename: 'evil.png',
+      contentType: 'image/png',
+    });
+  assert.equal(res.status, 400);
+  assert.equal(res.body.error.code, 'INVALID_FILE_TYPE');
+
+  const listRes = await request(app).get('/api/admin/gifts');
+  assert.equal(listRes.body.gifts.length, 0, 'no gift should have been created');
+  assert.equal(fs.readdirSync(path.join(uploadsDir, 'gifts')).length, 0, 'no file should have been written to disk');
+});
+
 test('rejects an image larger than 5MB', async () => {
   const { app } = buildApp();
   const bigBuffer = Buffer.alloc(6 * 1024 * 1024, 1);

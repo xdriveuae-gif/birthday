@@ -8,6 +8,25 @@ import { listAllGifts, getGiftById, createGift, updateGift, setGiftActive, delet
 
 const ALLOWED_MIME = { 'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp' };
 
+// Verify the file's actual bytes match a known image signature, rather than trusting
+// the client-supplied Content-Type header (which a renamed .txt->.png file can spoof).
+function sniffImageMime(buffer) {
+  if (buffer.length >= 8 && buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) {
+    return 'image/png';
+  }
+  if (buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) {
+    return 'image/jpeg';
+  }
+  if (
+    buffer.length >= 12 &&
+    buffer.subarray(0, 4).toString('ascii') === 'RIFF' &&
+    buffer.subarray(8, 12).toString('ascii') === 'WEBP'
+  ) {
+    return 'image/webp';
+  }
+  return null;
+}
+
 const giftFormSchema = z.object({
   name: z.string().trim().min(1, 'Name is required').max(100, 'Name is too long'),
   productUrl: z
@@ -28,18 +47,29 @@ const giftFormSchema = z.object({
 function createUploadMiddleware(uploadsDir) {
   const dest = path.join(uploadsDir, 'gifts');
   fs.mkdirSync(dest, { recursive: true });
-  const storage = multer.diskStorage({
-    destination: (req, file, cb) => cb(null, dest),
-    filename: (req, file, cb) => cb(null, `${randomUUID()}${ALLOWED_MIME[file.mimetype] ?? ''}`),
-  });
+  // Buffer the upload in memory so we can sniff its real content before trusting it,
+  // then write it to disk ourselves once validated (see writeUploadedFile below).
   return multer({
-    storage,
+    storage: multer.memoryStorage(),
     limits: { fileSize: 5 * 1024 * 1024 },
     fileFilter: (req, file, cb) => {
       if (ALLOWED_MIME[file.mimetype]) return cb(null, true);
       cb(new Error('INVALID_FILE_TYPE'));
     },
   });
+}
+
+// Persists a validated in-memory upload to disk, rejecting it if the actual file
+// bytes don't match a real image signature for the declared type.
+function writeUploadedFile(uploadsDir, file) {
+  const sniffed = sniffImageMime(file.buffer);
+  if (!sniffed || !ALLOWED_MIME[sniffed]) {
+    return { error: 'INVALID_FILE_TYPE' };
+  }
+  const dest = path.join(uploadsDir, 'gifts');
+  const filename = `${randomUUID()}${ALLOWED_MIME[sniffed]}`;
+  fs.writeFileSync(path.join(dest, filename), file.buffer);
+  return { filename };
 }
 
 function deleteUploadedFile(uploadsDir, imageUrl) {
@@ -72,10 +102,16 @@ export function createAdminGiftsRouter(db, uploadsDir) {
   router.post('/', handleUpload, (req, res) => {
     const parsed = giftFormSchema.safeParse(req.body);
     if (!parsed.success) {
-      if (req.file) deleteUploadedFile(uploadsDir, `/uploads/gifts/${req.file.filename}`);
       return res.status(400).json({ error: { code: 'INVALID_INPUT', message: parsed.error.issues[0].message } });
     }
-    const imageUrl = req.file ? `/uploads/gifts/${req.file.filename}` : null;
+    let imageUrl = null;
+    if (req.file) {
+      const written = writeUploadedFile(uploadsDir, req.file);
+      if (written.error) {
+        return res.status(400).json({ error: { code: 'INVALID_FILE_TYPE', message: 'Only JPEG, PNG, or WEBP images are allowed.' } });
+      }
+      imageUrl = `/uploads/gifts/${written.filename}`;
+    }
     const gift = createGift(db, { ...parsed.data, imageUrl });
     res.status(201).json({ gift });
   });
@@ -83,18 +119,20 @@ export function createAdminGiftsRouter(db, uploadsDir) {
   router.put('/:id', handleUpload, (req, res) => {
     const existing = getGiftById(db, req.params.id);
     if (!existing) {
-      if (req.file) deleteUploadedFile(uploadsDir, `/uploads/gifts/${req.file.filename}`);
       return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Gift not found.' } });
     }
     const parsed = giftFormSchema.safeParse(req.body);
     if (!parsed.success) {
-      if (req.file) deleteUploadedFile(uploadsDir, `/uploads/gifts/${req.file.filename}`);
       return res.status(400).json({ error: { code: 'INVALID_INPUT', message: parsed.error.issues[0].message } });
     }
     let imageUrl = existing.imageUrl;
     if (req.file) {
+      const written = writeUploadedFile(uploadsDir, req.file);
+      if (written.error) {
+        return res.status(400).json({ error: { code: 'INVALID_FILE_TYPE', message: 'Only JPEG, PNG, or WEBP images are allowed.' } });
+      }
       deleteUploadedFile(uploadsDir, existing.imageUrl);
-      imageUrl = `/uploads/gifts/${req.file.filename}`;
+      imageUrl = `/uploads/gifts/${written.filename}`;
     }
     const gift = updateGift(db, req.params.id, { ...parsed.data, imageUrl });
     res.json({ gift });
