@@ -1,7 +1,15 @@
+import { Routes, Route } from 'react-router-dom';
+import { AppProvider } from './state/AppContext.jsx';
+import { SoundToggle } from './components/SoundToggle.jsx';
+import Landing from './pages/Landing.jsx';
+
 export default function App() {
   return (
-    <div className="flex min-h-screen items-center justify-center text-white">
-      <h1 className="font-display text-3xl font-extrabold">🎂 Birthday Gift Wheel</h1>
-    </div>
+    <AppProvider>
+      <SoundToggle />
+      <Routes>
+        <Route path="/" element={<Landing />} />
+      </Routes>
+    </AppProvider>
   );
 }
