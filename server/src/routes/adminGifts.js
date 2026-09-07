@@ -50,9 +50,10 @@ function deleteUploadedFile(uploadsDir, imageUrl) {
 
 export function createAdminGiftsRouter(db, uploadsDir) {
   const router = Router();
-  const uploadSingle = createUploadMiddleware(uploadsDir).single('image');
+  let uploadSingle;
 
   function handleUpload(req, res, next) {
+    if (!uploadSingle) uploadSingle = createUploadMiddleware(uploadsDir).single('image');
     uploadSingle(req, res, (err) => {
       if (err instanceof multer.MulterError && err.code === 'LIMIT_FILE_SIZE') {
         return res.status(400).json({ error: { code: 'FILE_TOO_LARGE', message: 'Image must be 5MB or smaller.' } });
