@@ -6,6 +6,8 @@ import Landing from './pages/Landing.jsx';
 import WheelPage from './pages/Wheel.jsx';
 import Result from './pages/Result.jsx';
 import AdminLogin from './pages/admin/Login.jsx';
+import AdminDashboard from './pages/admin/Dashboard.jsx';
+import AdminSettings from './pages/admin/Settings.jsx';
 
 export default function App() {
   return (
@@ -16,7 +18,10 @@ export default function App() {
         <Route path="/wheel" element={<WheelPage />} />
         <Route path="/result" element={<Result />} />
         <Route path="/admin/login" element={<AdminLogin />} />
-        <Route path="/admin" element={<AdminLayout />} />
+        <Route path="/admin" element={<AdminLayout />}>
+          <Route index element={<AdminDashboard />} />
+          <Route path="settings" element={<AdminSettings />} />
+        </Route>
       </Routes>
     </AppProvider>
   );
