@@ -27,7 +27,7 @@ export function initDb(dbPath) {
     CREATE TABLE IF NOT EXISTS participants (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
-      gift_id INTEGER NOT NULL REFERENCES gifts(id),
+      gift_id INTEGER REFERENCES gifts(id) ON DELETE SET NULL,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
     CREATE TABLE IF NOT EXISTS settings (
