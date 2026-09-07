@@ -17,6 +17,7 @@ import { createAdminStatsRouter } from './routes/adminStats.js';
 export function createApp({ db, uploadsDir, sessionSecret, clientDistDir, isProduction } = {}) {
   const app = express();
   app.disable('x-powered-by');
+  app.set('trust proxy', 1);
   app.use(helmet());
   app.use(express.json());
   app.use(express.urlencoded({ extended: false }));
