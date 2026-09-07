@@ -16,8 +16,22 @@ function setupWithGifts(count = 3) {
 
 test('rejects empty or too-long names', () => {
   const { db } = setupWithGifts();
-  assert.throws(() => performSpin(db, '   '), SpinError);
-  assert.throws(() => performSpin(db, 'a'.repeat(51)), SpinError);
+  try {
+    performSpin(db, '   ');
+    assert.fail('expected SpinError');
+  } catch (err) {
+    assert.ok(err instanceof SpinError);
+    assert.equal(err.status, 400);
+    assert.equal(err.code, 'INVALID_NAME');
+  }
+  try {
+    performSpin(db, 'a'.repeat(51));
+    assert.fail('expected SpinError');
+  } catch (err) {
+    assert.ok(err instanceof SpinError);
+    assert.equal(err.status, 400);
+    assert.equal(err.code, 'INVALID_NAME');
+  }
 });
 
 test('rejects spin when wheel is disabled', () => {
@@ -61,6 +75,7 @@ test('when allow_repeat_gifts is false, a won gift becomes ineligible for future
     performSpin(db, 'Sara');
     assert.fail('expected SpinError since the only gift is already won');
   } catch (err) {
+    assert.equal(err.status, 409);
     assert.equal(err.code, 'NO_GIFTS_LEFT');
   }
 });
@@ -80,6 +95,7 @@ test('inactive gifts are never eligible', () => {
     performSpin(db, 'Ahmad');
     assert.fail('expected SpinError');
   } catch (err) {
+    assert.equal(err.status, 409);
     assert.equal(err.code, 'NO_GIFTS_LEFT');
   }
 });
