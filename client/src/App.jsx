@@ -7,6 +7,7 @@ import WheelPage from './pages/Wheel.jsx';
 import Result from './pages/Result.jsx';
 import AdminLogin from './pages/admin/Login.jsx';
 import AdminDashboard from './pages/admin/Dashboard.jsx';
+import AdminGifts from './pages/admin/Gifts.jsx';
 import AdminSettings from './pages/admin/Settings.jsx';
 
 export default function App() {
@@ -20,6 +21,7 @@ export default function App() {
         <Route path="/admin/login" element={<AdminLogin />} />
         <Route path="/admin" element={<AdminLayout />}>
           <Route index element={<AdminDashboard />} />
+          <Route path="gifts" element={<AdminGifts />} />
           <Route path="settings" element={<AdminSettings />} />
         </Route>
       </Routes>
