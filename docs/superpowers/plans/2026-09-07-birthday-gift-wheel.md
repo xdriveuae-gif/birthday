@@ -34,6 +34,20 @@
 > `PRAGMA journal_mode = WAL`, restoring the originally-intended
 > application-level-only referential integrity (dangling `gift_id` allowed,
 > resolved gracefully via the `LEFT JOIN` in `listParticipants`).
+>
+> **Third amendment (made during Task 21 execution):** Admin login was found
+> to be completely broken in real production deployment (not just local
+> testing) — `cookie.secure: true` combined with `express-session`'s
+> documented behavior (it skips setting `Set-Cookie` entirely when
+> `req.secure` is false) meant that on Render, which terminates TLS at its
+> edge and forwards to the app over plain HTTP with `X-Forwarded-Proto:
+> https`, Express never saw the connection as secure because `trust proxy`
+> was never configured — so `req.secure` was always `false` regardless of the
+> real, HTTPS-terminated client connection. Fix: `createApp` now calls
+> `app.set('trust proxy', 1)` (trusting exactly one hop, matching a
+> single-reverse-proxy deployment like Render/Railway) immediately after
+> `app.disable('x-powered-by')`. This is inert in local development (no
+> proxy present, header absent).
 
 ## Global Constraints
 
@@ -1931,6 +1945,7 @@ import { createAdminStatsRouter } from './routes/adminStats.js';
 export function createApp({ db, uploadsDir, sessionSecret, clientDistDir, isProduction } = {}) {
   const app = express();
   app.disable('x-powered-by');
+  app.set('trust proxy', 1);
   app.use(helmet());
   app.use(express.json());
   app.use(express.urlencoded({ extended: false }));

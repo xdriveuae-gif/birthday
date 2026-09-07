@@ -315,6 +315,14 @@ Get it here:
 
 ## 11. Security
 
+- **`app.set('trust proxy', 1)`**: required for `cookie.secure: true` session
+  cookies to actually work once deployed behind Render/Railway's reverse proxy,
+  which terminates TLS at its edge and forwards to the app over plain HTTP with
+  `X-Forwarded-Proto: https`. Without this, Express never sees the connection
+  as secure, and `express-session` silently omits the `Set-Cookie` header
+  entirely — breaking admin login in real production, not just in local
+  no-TLS testing. Trusting exactly one hop matches a single-reverse-proxy
+  deployment; inert in local development (no proxy, no forwarded header).
 - **Helmet** for standard headers (CSP configured to allow same-origin only, since
   there are no third-party embeds).
 - **express-rate-limit**: `/api/admin/login` (e.g. 10 attempts / 15 min / IP),
