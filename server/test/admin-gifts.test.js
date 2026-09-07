@@ -171,6 +171,60 @@ test('deleting a gift removes its image file from disk', async () => {
   assert.ok(!fs.existsSync(filePath), 'image file should be deleted with gift');
 });
 
+function countUploadedFiles(uploadsDir) {
+  const dir = path.join(uploadsDir, 'gifts');
+  if (!fs.existsSync(dir)) return 0;
+  return fs.readdirSync(dir).length;
+}
+
+test('uploading an image against a 404 update target does not orphan the file', async () => {
+  const { app, uploadsDir } = buildApp();
+  const before = countUploadedFiles(uploadsDir);
+  const res = await request(app)
+    .put('/api/admin/gifts/999')
+    .field('name', 'Ghost')
+    .field('productUrl', 'https://example.com/ghost')
+    .field('active', 'true')
+    .attach('image', PNG_BUFFER, { filename: 'ghost.png', contentType: 'image/png' });
+  assert.equal(res.status, 404);
+  assert.equal(countUploadedFiles(uploadsDir), before, 'no file should remain after 404 on update');
+});
+
+test('uploading an image with an invalid body on update does not orphan the file', async () => {
+  const { app, uploadsDir } = buildApp();
+  const createRes = await request(app)
+    .post('/api/admin/gifts')
+    .field('name', 'Speaker')
+    .field('productUrl', 'https://example.com/speaker')
+    .field('active', 'true');
+  const id = createRes.body.gift.id;
+  const before = countUploadedFiles(uploadsDir);
+
+  const res = await request(app)
+    .put(`/api/admin/gifts/${id}`)
+    .field('name', 'Speaker 2')
+    .field('productUrl', 'not-a-url')
+    .field('active', 'true')
+    .attach('image', PNG_BUFFER, { filename: 'speaker2.png', contentType: 'image/png' });
+  assert.equal(res.status, 400);
+  assert.equal(res.body.error.code, 'INVALID_INPUT');
+  assert.equal(countUploadedFiles(uploadsDir), before, 'no new file should remain after 400 on update');
+});
+
+test('uploading an image with an invalid body on create does not orphan the file', async () => {
+  const { app, uploadsDir } = buildApp();
+  const before = countUploadedFiles(uploadsDir);
+  const res = await request(app)
+    .post('/api/admin/gifts')
+    .field('name', 'Broken')
+    .field('productUrl', 'not-a-url')
+    .field('active', 'true')
+    .attach('image', PNG_BUFFER, { filename: 'broken.png', contentType: 'image/png' });
+  assert.equal(res.status, 400);
+  assert.equal(res.body.error.code, 'INVALID_INPUT');
+  assert.equal(countUploadedFiles(uploadsDir), before, 'no file should remain after 400 on create');
+});
+
 test('uploaded filename is a server-generated UUID, not derived from original filename', async () => {
   const { app } = buildApp();
   const createRes = await request(app)

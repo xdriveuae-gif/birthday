@@ -71,6 +71,7 @@ export function createAdminGiftsRouter(db, uploadsDir) {
   router.post('/', handleUpload, (req, res) => {
     const parsed = giftFormSchema.safeParse(req.body);
     if (!parsed.success) {
+      if (req.file) deleteUploadedFile(uploadsDir, `/uploads/gifts/${req.file.filename}`);
       return res.status(400).json({ error: { code: 'INVALID_INPUT', message: parsed.error.issues[0].message } });
     }
     const imageUrl = req.file ? `/uploads/gifts/${req.file.filename}` : null;
@@ -80,9 +81,13 @@ export function createAdminGiftsRouter(db, uploadsDir) {
 
   router.put('/:id', handleUpload, (req, res) => {
     const existing = getGiftById(db, req.params.id);
-    if (!existing) return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Gift not found.' } });
+    if (!existing) {
+      if (req.file) deleteUploadedFile(uploadsDir, `/uploads/gifts/${req.file.filename}`);
+      return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Gift not found.' } });
+    }
     const parsed = giftFormSchema.safeParse(req.body);
     if (!parsed.success) {
+      if (req.file) deleteUploadedFile(uploadsDir, `/uploads/gifts/${req.file.filename}`);
       return res.status(400).json({ error: { code: 'INVALID_INPUT', message: parsed.error.issues[0].message } });
     }
     let imageUrl = existing.imageUrl;
