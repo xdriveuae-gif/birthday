@@ -4,11 +4,23 @@
 
 **Goal:** Build the complete birthday gift wheel web app: a funny/flashy public spin flow (name → wheel → gift → WhatsApp share) backed by a server-authoritative spin, plus a protected admin console for gifts, participants, and settings.
 
-**Architecture:** Monorepo (`client/` Vite+React+Tailwind+Framer Motion SPA, `server/` Express+better-sqlite3 API) deployed as one Node process — Express serves the built SPA and the API from the same origin in production, Vite dev server proxies `/api` to Express in development.
+**Architecture:** Monorepo (`client/` Vite+React+Tailwind+Framer Motion SPA, `server/` Express+node:sqlite API) deployed as one Node process — Express serves the built SPA and the API from the same origin in production, Vite dev server proxies `/api` to Express in development.
 
-**Tech Stack:** Node.js (ESM, `"type": "module"`), Express 4, better-sqlite3, bcryptjs, express-session + connect-sqlite3, helmet, express-rate-limit, zod, multer, Node's built-in `node:test` + supertest for server tests; React 18, Vite, Tailwind CSS, Framer Motion, react-router-dom, vitest for pure-logic unit tests.
+**Tech Stack:** Node.js 24.x (ESM, `"type": "module"`), Express 4, Node's built-in `node:sqlite` module (`DatabaseSync` — see amendment note below), bcryptjs, express-session with a custom `node:sqlite`-backed store, helmet, express-rate-limit, zod, multer, Node's built-in `node:test` + supertest for server tests; React 18, Vite, Tailwind CSS, Framer Motion, react-router-dom, vitest for pure-logic unit tests.
 
 **Spec:** [docs/superpowers/specs/2026-09-07-birthday-gift-wheel-design.md](../specs/2026-09-07-birthday-gift-wheel-design.md)
+
+> **Amendment (made during Task 1 execution):** The original version of this
+> plan pinned `better-sqlite3` + `connect-sqlite3`. Both were replaced with
+> Node's built-in `node:sqlite` module (plus a small custom session store)
+> after two independent verification passes showed `better-sqlite3` cannot
+> install at all on the machine this project is being built on (no Python/
+> node-gyp toolchain; native-module prebuild fetching for Node 24 proved
+> unreliable — a plain `npm install` aborted completely, emptying
+> `node_modules` of every package). Every task below already reflects the
+> `node:sqlite`-based implementation — this note exists only to explain why,
+> since the spec text still shows its original approval date. See the SDD
+> ledger for the full verification trail.
 
 ## Global Constraints
 
@@ -18,7 +30,7 @@
 - No sound plays automatically on page load — only after a user gesture (spec §10).
 - All `/api/admin/*` routes require an authenticated session via `requireAdmin` middleware (spec §5).
 - Passwords hashed with bcrypt (bcryptjs, cost 12), never stored or logged in plaintext (spec §5, §11).
-- All SQL uses better-sqlite3 prepared statements with bound parameters — no string-concatenated SQL (spec §11).
+- All SQL uses `node:sqlite` prepared statements (`db.prepare(sql).run/get/all()`) with bound `?` parameters — no string-concatenated SQL (spec §11).
 - Uploaded gift images: MIME allow-list `image/jpeg`, `image/png`, `image/webp` only, 5MB max, server-generated UUID filenames (spec §6, §11).
 - Env vars (from `.env` at repo root): `PORT`, `NODE_ENV`, `SESSION_SECRET`, `ADMIN_USERNAME`, `ADMIN_PASSWORD`, `SQLITE_PATH`, `UPLOADS_DIR` (spec §14).
 - Exact copy to reuse verbatim across client tasks (do not invent variants):
@@ -104,12 +116,10 @@ UPLOADS_DIR=server/data/uploads
   "scripts": {
     "dev": "node --watch src/index.js",
     "start": "node src/index.js",
-    "test": "node --test test/"
+    "test": "node --test test/*.test.js"
   },
   "dependencies": {
-    "better-sqlite3": "^11.3.0",
     "bcryptjs": "^2.4.3",
-    "connect-sqlite3": "^0.9.15",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
     "express-rate-limit": "^7.4.0",
@@ -211,9 +221,10 @@ git commit -m "Scaffold repo and server with health check endpoint"
 - Test: `server/test/password.test.js`
 
 **Interfaces:**
-- Consumes: nothing from earlier tasks.
+- Consumes: nothing from earlier tasks. Uses Node's built-in `node:sqlite` module (`DatabaseSync`) — no npm dependency, ships with Node 22.5+; this project targets Node 24.x (see Global Constraints / plan header amendment).
 - Produces:
-  - `initDb(dbPath: string): Database.Database` — creates tables if missing, seeds default settings rows.
+  - `initDb(dbPath: string): DatabaseSync` — creates tables (including a `sessions` table used by Task 9's session store) if missing, seeds default settings rows.
+  - `runInTransaction(db, fn: () => T): T` — runs `fn` inside `BEGIN`/`COMMIT`, rolling back on any thrown error and rethrowing. `node:sqlite`'s `DatabaseSync` has no built-in `.transaction()` helper (unlike better-sqlite3), so this wraps the same guarantee manually.
   - `seedAdminIfEmpty(db, username: string, passwordHash: string): boolean` — inserts an admin row only if `admin_users` is empty; returns whether it inserted.
   - `getAllSettings(db): { allowRepeatGifts: boolean, wheelEnabled: boolean }`
   - `updateSettings(db, { allowRepeatGifts?: boolean, wheelEnabled?: boolean }): same shape as getAllSettings`
@@ -226,7 +237,7 @@ git commit -m "Scaffold repo and server with health check endpoint"
 ```js
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { initDb, seedAdminIfEmpty } from '../src/db/index.js';
+import { initDb, seedAdminIfEmpty, runInTransaction } from '../src/db/index.js';
 import { getAllSettings, updateSettings } from '../src/db/settings.js';
 
 test('initDb creates tables and seeds default settings', () => {
@@ -257,6 +268,29 @@ test('seedAdminIfEmpty inserts once and skips on second call', () => {
   assert.equal(row.username, 'admin');
   assert.equal(row.password_hash, 'hash-a');
 });
+
+test('runInTransaction commits on success', () => {
+  const db = initDb(':memory:');
+  const result = runInTransaction(db, () => {
+    db.prepare('INSERT INTO admin_users (username, password_hash) VALUES (?, ?)').run('a', 'h');
+    return 'ok';
+  });
+  assert.equal(result, 'ok');
+  const { count } = db.prepare('SELECT COUNT(*) AS count FROM admin_users').get();
+  assert.equal(count, 1);
+});
+
+test('runInTransaction rolls back on thrown error and rethrows', () => {
+  const db = initDb(':memory:');
+  assert.throws(() => {
+    runInTransaction(db, () => {
+      db.prepare('INSERT INTO admin_users (username, password_hash) VALUES (?, ?)').run('a', 'h');
+      throw new Error('boom');
+    });
+  }, /boom/);
+  const { count } = db.prepare('SELECT COUNT(*) AS count FROM admin_users').get();
+  assert.equal(count, 0);
+});
 ```
 
 `server/test/password.test.js`:
@@ -281,7 +315,7 @@ Expected: FAIL — modules under `src/db/` and `src/lib/password.js` don't exist
 - [ ] **Step 3: Implement `db/index.js`**
 
 ```js
-import Database from 'better-sqlite3';
+import { DatabaseSync } from 'node:sqlite';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -289,8 +323,8 @@ export function initDb(dbPath) {
   if (dbPath !== ':memory:') {
     fs.mkdirSync(path.dirname(dbPath), { recursive: true });
   }
-  const db = new Database(dbPath);
-  db.pragma('journal_mode = WAL');
+  const db = new DatabaseSync(dbPath);
+  db.exec('PRAGMA journal_mode = WAL');
   db.exec(`
     CREATE TABLE IF NOT EXISTS admin_users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -317,11 +351,28 @@ export function initDb(dbPath) {
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS sessions (
+      sid TEXT PRIMARY KEY,
+      data TEXT NOT NULL,
+      expires INTEGER NOT NULL
+    );
   `);
   const insertDefault = db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)');
   insertDefault.run('allow_repeat_gifts', 'false');
   insertDefault.run('wheel_enabled', 'true');
   return db;
+}
+
+export function runInTransaction(db, fn) {
+  db.exec('BEGIN');
+  try {
+    const result = fn();
+    db.exec('COMMIT');
+    return result;
+  } catch (err) {
+    db.exec('ROLLBACK');
+    throw err;
+  }
 }
 
 export function seedAdminIfEmpty(db, username, passwordHash) {
@@ -628,7 +679,7 @@ git commit -m "Add gifts and participants data access layer"
 - Test: `server/test/spin-service.test.js`
 
 **Interfaces:**
-- Consumes: `getAllSettings`, `listActiveGifts`, `listWonGiftIds`, `insertParticipant` from Tasks 2–3.
+- Consumes: `getAllSettings`, `listActiveGifts`, `listWonGiftIds`, `insertParticipant` from Tasks 2–3; `runInTransaction` from Task 2.
 - Produces:
   - `class SpinError extends Error { status: number; code: string; message: string }`
   - `performSpin(db, rawName: string): { participant: Participant, gift: Gift, wheelSegments: Gift[] }` — throws `SpinError` for invalid name (400 `INVALID_NAME`), disabled wheel (403 `WHEEL_DISABLED`), or no eligible gifts (409 `NO_GIFTS_LEFT`).
@@ -732,6 +783,7 @@ Expected: FAIL — `src/services/spin.js` does not exist.
 - [ ] **Step 3: Implement `services/spin.js`**
 
 ```js
+import { runInTransaction } from '../db/index.js';
 import { getAllSettings } from '../db/settings.js';
 import { listActiveGifts } from '../db/gifts.js';
 import { listWonGiftIds, insertParticipant } from '../db/participants.js';
@@ -750,7 +802,7 @@ export function performSpin(db, rawName) {
     throw new SpinError(400, 'INVALID_NAME', 'Please enter a name between 1 and 50 characters.');
   }
 
-  const run = db.transaction(() => {
+  return runInTransaction(db, () => {
     const settings = getAllSettings(db);
     if (!settings.wheelEnabled) {
       throw new SpinError(403, 'WHEEL_DISABLED', 'The wheel is taking a nap. Ask the birthday human to turn it back on.');
@@ -769,8 +821,6 @@ export function performSpin(db, rawName) {
 
     return { participant, gift: winner, wheelSegments: eligible };
   });
-
-  return run();
 }
 ```
 
@@ -1651,15 +1701,130 @@ git commit -m "Add admin participants, settings, and stats routes"
 ## Task 9: App assembly — security middleware, rate limiting, prod static serving
 
 **Files:**
+- Create: `server/src/lib/sqliteSessionStore.js`
+- Test: `server/test/sqlite-session-store.test.js`
 - Modify: `server/src/app.js`
 - Modify: `server/src/index.js`
 - Test: `server/test/app-integration.test.js`
 
 **Interfaces:**
-- Consumes: every router factory from Tasks 5–8, `requireAdmin` (Task 5), `initDb`/`seedAdminIfEmpty` (Task 2).
-- Produces: `createApp({ db, uploadsDir, sessionsDir, sessionSecret, clientDistDir, isProduction }): express.Application` — the final shape of the app used both by tests and by `index.js`.
+- Consumes: every router factory from Tasks 5–8, `requireAdmin` (Task 5), `initDb`/`seedAdminIfEmpty` (Task 2) — including the `sessions` table `initDb` already creates.
+- Produces:
+  - `class SqliteSessionStore extends session.Store` — `get(sid, cb)`, `set(sid, sessionData, cb)`, `destroy(sid, cb)`, `touch(sid, sessionData, cb)`, backed by the `sessions` table on the same `node:sqlite` database (no separate file, no extra dependency — replaces the originally-planned `connect-sqlite3`).
+  - `createApp({ db, uploadsDir, sessionSecret, clientDistDir, isProduction }): express.Application` — the final shape of the app used both by tests and by `index.js`. Note there is no `sessionsDir` parameter: sessions live in the same database file as everything else.
 
-- [ ] **Step 1: Write the failing integration test**
+- [ ] **Step 1: Write the failing session-store test**
+
+`server/test/sqlite-session-store.test.js`:
+```js
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { initDb } from '../src/db/index.js';
+import { SqliteSessionStore } from '../src/lib/sqliteSessionStore.js';
+
+function getAsync(store, sid) {
+  return new Promise((resolve, reject) => store.get(sid, (err, data) => (err ? reject(err) : resolve(data))));
+}
+function setAsync(store, sid, data) {
+  return new Promise((resolve, reject) => store.set(sid, data, (err) => (err ? reject(err) : resolve())));
+}
+function destroyAsync(store, sid) {
+  return new Promise((resolve, reject) => store.destroy(sid, (err) => (err ? reject(err) : resolve())));
+}
+
+test('set then get round-trips session data', async () => {
+  const db = initDb(':memory:');
+  const store = new SqliteSessionStore(db);
+  await setAsync(store, 'sid-1', { cookie: { maxAge: 60000 }, adminId: 1 });
+  const data = await getAsync(store, 'sid-1');
+  assert.deepEqual(data, { cookie: { maxAge: 60000 }, adminId: 1 });
+});
+
+test('get returns null for an unknown sid', async () => {
+  const db = initDb(':memory:');
+  const store = new SqliteSessionStore(db);
+  assert.equal(await getAsync(store, 'does-not-exist'), null);
+});
+
+test('get returns null for an expired session', async () => {
+  const db = initDb(':memory:');
+  const store = new SqliteSessionStore(db);
+  await setAsync(store, 'sid-1', { cookie: { maxAge: -1000 } });
+  assert.equal(await getAsync(store, 'sid-1'), null);
+});
+
+test('destroy removes the session', async () => {
+  const db = initDb(':memory:');
+  const store = new SqliteSessionStore(db);
+  await setAsync(store, 'sid-1', { cookie: { maxAge: 60000 } });
+  await destroyAsync(store, 'sid-1');
+  assert.equal(await getAsync(store, 'sid-1'), null);
+});
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `npm test --prefix server`
+Expected: FAIL — `src/lib/sqliteSessionStore.js` does not exist.
+
+- [ ] **Step 3: Implement `lib/sqliteSessionStore.js`**
+
+```js
+import session from 'express-session';
+
+export class SqliteSessionStore extends session.Store {
+  constructor(db) {
+    super();
+    this.db = db;
+  }
+
+  get(sid, callback) {
+    try {
+      const row = this.db.prepare('SELECT data, expires FROM sessions WHERE sid = ?').get(sid);
+      if (!row || row.expires < Date.now()) return callback(null, null);
+      callback(null, JSON.parse(row.data));
+    } catch (err) {
+      callback(err);
+    }
+  }
+
+  set(sid, sessionData, callback) {
+    try {
+      const maxAge = sessionData.cookie?.maxAge ?? 8 * 60 * 60 * 1000;
+      const expires = Date.now() + maxAge;
+      this.db
+        .prepare(
+          `INSERT INTO sessions (sid, data, expires) VALUES (?, ?, ?)
+           ON CONFLICT(sid) DO UPDATE SET data = excluded.data, expires = excluded.expires`
+        )
+        .run(sid, JSON.stringify(sessionData), expires);
+      callback?.(null);
+    } catch (err) {
+      callback?.(err);
+    }
+  }
+
+  destroy(sid, callback) {
+    try {
+      this.db.prepare('DELETE FROM sessions WHERE sid = ?').run(sid);
+      callback?.(null);
+    } catch (err) {
+      callback?.(err);
+    }
+  }
+
+  touch(sid, sessionData, callback) {
+    this.set(sid, sessionData, callback);
+  }
+}
+```
+
+- [ ] **Step 4: Run test to verify it passes**
+
+Run: `npm test --prefix server`
+Expected: PASS
+
+- [ ] **Step 5: Write the failing integration test**
 
 `server/test/app-integration.test.js`:
 ```js
@@ -1680,7 +1845,7 @@ function buildRealApp() {
   const db = initDb(path.join(root, 'app.db'));
   seedAdminIfEmpty(db, 'admin', hashPassword('secret123'));
   const uploadsDir = path.join(root, 'uploads');
-  return createApp({ db, uploadsDir, sessionsDir: root, sessionSecret: 'test-secret', clientDistDir: null, isProduction: false });
+  return createApp({ db, uploadsDir, sessionSecret: 'test-secret', clientDistDir: null, isProduction: false });
 }
 
 after(() => {
@@ -1725,22 +1890,21 @@ test('full flow: admin creates a gift, then a public spin wins it', async () => 
 });
 ```
 
-- [ ] **Step 2: Run tests to verify the new integration test fails**
+- [ ] **Step 6: Run tests to verify the new integration test fails**
 
 Run: `npm test --prefix server`
 Expected: FAIL — current `createApp` only accepts `{ isProduction }` and has no routers/session wired.
 
-- [ ] **Step 3: Rewrite `src/app.js`**
+- [ ] **Step 7: Rewrite `src/app.js`**
 
 ```js
 import express from 'express';
 import session from 'express-session';
-import connectSqlite3 from 'connect-sqlite3';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import path from 'node:path';
-import fs from 'node:fs';
 import { requireAdmin } from './middleware/requireAdmin.js';
+import { SqliteSessionStore } from './lib/sqliteSessionStore.js';
 import { createSpinRouter } from './routes/spin.js';
 import { createPublicGiftsRouter } from './routes/publicGifts.js';
 import { createPublicSettingsRouter } from './routes/publicSettings.js';
@@ -1750,7 +1914,7 @@ import { createAdminParticipantsRouter } from './routes/adminParticipants.js';
 import { createAdminSettingsRouter } from './routes/adminSettings.js';
 import { createAdminStatsRouter } from './routes/adminStats.js';
 
-export function createApp({ db, uploadsDir, sessionsDir, sessionSecret, clientDistDir, isProduction } = {}) {
+export function createApp({ db, uploadsDir, sessionSecret, clientDistDir, isProduction } = {}) {
   const app = express();
   app.disable('x-powered-by');
   app.use(helmet());
@@ -1759,11 +1923,9 @@ export function createApp({ db, uploadsDir, sessionsDir, sessionSecret, clientDi
 
   app.get('/api/health', (req, res) => res.json({ ok: true }));
 
-  if (sessionsDir) fs.mkdirSync(sessionsDir, { recursive: true });
-  const SQLiteStore = connectSqlite3(session);
   app.use(
     session({
-      store: sessionsDir ? new SQLiteStore({ dir: sessionsDir, db: 'sessions.sqlite' }) : undefined,
+      store: db ? new SqliteSessionStore(db) : undefined,
       secret: sessionSecret || 'dev-only-secret',
       resave: false,
       saveUninitialized: false,
@@ -1808,9 +1970,9 @@ export function createApp({ db, uploadsDir, sessionsDir, sessionSecret, clientDi
 }
 ```
 
-Note: `sessionSecret || 'dev-only-secret'` is a safety net purely so `createApp({ isProduction: false })` (as called by the Task 1 health-check test, with no `sessionSecret`) keeps working — `index.js` still hard-fails startup if `SESSION_SECRET` is missing from the real `.env` (Step 4 below), so this fallback is never reachable in a real deployment.
+Note: `sessionSecret || 'dev-only-secret'` is a safety net purely so `createApp({ isProduction: false })` (as called by the Task 1 health-check test, with no `sessionSecret`) keeps working — `index.js` still hard-fails startup if `SESSION_SECRET` is missing from the real `.env` (Step 8 below), so this fallback is never reachable in a real deployment. Similarly, `store: db ? new SqliteSessionStore(db) : undefined` keeps that same Task 1 test working when `db` isn't passed at all — every other caller of `createApp` always passes a real `db`.
 
-- [ ] **Step 4: Rewrite `src/index.js`**
+- [ ] **Step 8: Rewrite `src/index.js`**
 
 ```js
 import dotenv from 'dotenv';
@@ -1828,7 +1990,6 @@ const port = Number(process.env.PORT) || 3000;
 const repoRoot = path.resolve(__dirname, '../..');
 const dbPath = path.resolve(repoRoot, process.env.SQLITE_PATH || 'server/data/app.db');
 const uploadsDir = path.resolve(repoRoot, process.env.UPLOADS_DIR || 'server/data/uploads');
-const sessionsDir = path.dirname(dbPath);
 const clientDistDir = path.join(repoRoot, 'client/dist');
 const sessionSecret = process.env.SESSION_SECRET;
 
@@ -1848,19 +2009,19 @@ if (adminUsername && adminPassword) {
   console.warn('ADMIN_USERNAME/ADMIN_PASSWORD not set in .env — skipping admin seed.');
 }
 
-const app = createApp({ db, uploadsDir, sessionsDir, sessionSecret, clientDistDir, isProduction });
+const app = createApp({ db, uploadsDir, sessionSecret, clientDistDir, isProduction });
 
 app.listen(port, () => {
   console.log(`Server listening on http://localhost:${port}`);
 });
 ```
 
-- [ ] **Step 5: Run the full server test suite to verify everything passes, including Task 1's original health check**
+- [ ] **Step 9: Run the full server test suite to verify everything passes, including Task 1's original health check**
 
 Run: `npm test --prefix server`
-Expected: PASS for all test files (health, db, password, gifts-db, participants-db, spin-service, require-admin, admin-auth, public-routes, admin-gifts, admin-participants, admin-settings-stats, app-integration).
+Expected: PASS for all test files (health, db, password, gifts-db, participants-db, spin-service, require-admin, admin-auth, public-routes, admin-gifts, admin-participants, admin-settings-stats, sqlite-session-store, app-integration).
 
-- [ ] **Step 6: Manually verify the server boots**
+- [ ] **Step 10: Manually verify the server boots**
 
 Run:
 ```bash
@@ -1872,10 +2033,10 @@ npm run dev --prefix server
 ```
 Expected: console prints `Admin account "..." created.` and `Server listening on http://localhost:3000`. Visit `http://localhost:3000/api/health` and confirm `{"ok":true}`. Stop the server with Ctrl+C when confirmed.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 11: Commit**
 
 ```bash
-git add server/src/app.js server/src/index.js server/test/app-integration.test.js
+git add server/src/app.js server/src/index.js server/src/lib/sqliteSessionStore.js server/test/sqlite-session-store.test.js server/test/app-integration.test.js
 git commit -m "Assemble full Express app: sessions, security headers, rate limiting, prod static serving"
 ```
 
@@ -4068,12 +4229,13 @@ git commit -m "Add admin participants page with search, sort, and delete"
 
 - [ ] **Step 1: Pin a Node engine range in all three `package.json` files**
 
-Add this key to `package.json`, `server/package.json`, and `client/package.json` (better-sqlite3 ships prebuilt binaries for actively-supported Node versions, so pinning avoids a surprise native-build failure on deploy):
+Add this key to `package.json`, `server/package.json`, and `client/package.json` — this project's server code uses the built-in `node:sqlite` module (Task 2 amendment), which does not exist before Node 22.5 and needed an `--experimental-sqlite` flag on some versions in that range; `>=22.12.0` is the documented safe floor, though this plan was built and verified against Node 24.x specifically, which is what the README recommends pinning to for both local dev and deployment:
 ```json
 "engines": {
-  "node": ">=18.18.0"
+  "node": ">=22.12.0"
 }
 ```
+**Merge this key into the existing file — do not overwrite/recreate any of the three `package.json` files.** Every other field (scripts, dependencies) must stay exactly as earlier tasks left them.
 
 - [ ] **Step 2: Build the client**
 
@@ -4139,8 +4301,13 @@ behavior.
 ## Tech stack
 
 - **Client:** React + Vite + Tailwind CSS + Framer Motion
-- **Server:** Node.js + Express + better-sqlite3
+- **Server:** Node.js 24.x + Express + `node:sqlite` (Node's built-in SQLite module — no native/npm database dependency)
 - **Database:** SQLite (file-based, no separate DB server needed)
+
+> **Requires Node 24.x.** This project uses Node's built-in `node:sqlite`
+> module, which doesn't exist before Node 22.5 and needs a recent Node build
+> to run unflagged. Check your version with `node --version` before
+> installing, and use a version manager (nvm/fnm/volta) to switch if needed.
 
 ## Install
 
@@ -4227,12 +4394,16 @@ needed.
    web service disk is wiped on every deploy/restart, silently deleting the
    database and every uploaded gift image. Point `SQLITE_PATH=/data/app.db`
    and `UPLOADS_DIR=/data/uploads` at the mounted disk.
-7. Deploy, then share the resulting URL.
+7. **Pin the Node version to 24.x explicitly** in the host's runtime/Node
+   version setting (don't rely solely on `package.json`'s `engines` field —
+   hosts don't always default to a version recent enough for `node:sqlite`).
+8. Deploy, then share the resulting URL.
 
 ## Database
 
-SQLite via `better-sqlite3`. The file lives at `SQLITE_PATH`. Tables
-(`admin_users`, `gifts`, `participants`, `settings`) are created automatically
+SQLite via Node's built-in `node:sqlite` module (`DatabaseSync`) — no native
+compilation, no extra npm dependency. The file lives at `SQLITE_PATH`. Tables
+(`admin_users`, `gifts`, `participants`, `settings`, `sessions`) are created automatically
 on first boot — see `server/src/db/index.js`. There is no separate migration
 tool; schema changes at this project's scale are made directly in that file
 using `CREATE TABLE IF NOT EXISTS`.
