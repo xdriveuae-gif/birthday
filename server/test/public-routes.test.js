@@ -43,7 +43,7 @@ test('POST /api/spin returns 400 for missing name', async () => {
   assert.equal(res.body.error.code, 'INVALID_NAME');
 });
 
-test('POST /api/spin returns the winning gift and wheelSegments on success', async () => {
+test('POST /api/spin returns a candidate gift and wheelSegments, without saving a participant', async () => {
   const db = initDb(':memory:');
   createGift(db, { name: 'AirPods', imageUrl: null, productUrl: 'https://example.com/airpods', active: true });
   const res = await request(buildApp(db)).post('/api/spin').send({ name: 'Ahmad' });
@@ -51,6 +51,17 @@ test('POST /api/spin returns the winning gift and wheelSegments on success', asy
   assert.equal(res.body.gift.name, 'AirPods');
   assert.equal(res.body.gift.productUrl, 'https://example.com/airpods');
   assert.equal(res.body.wheelSegments.length, 1);
+  assert.equal(res.body.participant, undefined);
+});
+
+test('POST /api/spin can be called repeatedly without reducing eligibility', async () => {
+  const db = initDb(':memory:');
+  createGift(db, { name: 'AirPods', imageUrl: null, productUrl: 'https://example.com/airpods', active: true });
+  const app = buildApp(db);
+  await request(app).post('/api/spin').send({ name: 'Ahmad' }).expect(200);
+  const second = await request(app).post('/api/spin').send({ name: 'Ahmad' });
+  assert.equal(second.status, 200);
+  assert.equal(second.body.gift.name, 'AirPods');
 });
 
 test('POST /api/spin returns 409 when there are no gifts at all', async () => {
