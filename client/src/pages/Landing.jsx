@@ -48,7 +48,7 @@ export default function Landing() {
     setName(trimmed);
     resetSpinFlow();
     playClick();
-    navigate('/choice');
+    navigate('/love-question');
   }
 
   return (

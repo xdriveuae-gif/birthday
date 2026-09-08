@@ -5,7 +5,7 @@ import { useAppContext } from '../state/AppContext.jsx';
 import { Confetti } from '../components/Confetti.jsx';
 import { FloatingBirthdayBits } from '../components/FloatingBirthdayBits.jsx';
 import { ConfirmDialog } from '../components/ConfirmDialog.jsx';
-import { postJson, ApiError } from '../lib/api.js';
+import { getJson, postJson, ApiError } from '../lib/api.js';
 
 const JOKES = [
   'Sorry. No take-backs.',
@@ -17,6 +17,13 @@ const JOKES = [
   'I did not rig this. Probably.',
   "Fate has excellent taste, don't you think?",
   'Go forth and shop. The wheel commands it.',
+];
+
+const CASH_LINES = [
+  'Straight to the point. I respect that.',
+  'No wheel drama needed — cold hard cash it is.',
+  'The wheel weeps, but your bank account rejoices.',
+  'Efficient. Ruthless. Iconic.',
 ];
 
 const BACK_TO_START_LABELS = ['Back to start', 'Spin someone else in', 'Send another victim'];
@@ -36,6 +43,7 @@ export default function Result() {
   } = useAppContext();
   const navigate = useNavigate();
   const joke = useMemo(() => JOKES[Math.floor(Math.random() * JOKES.length)], []);
+  const cashLine = useMemo(() => CASH_LINES[Math.floor(Math.random() * CASH_LINES.length)], []);
   const backLabel = useMemo(
     () => BACK_TO_START_LABELS[Math.floor(Math.random() * BACK_TO_START_LABELS.length)],
     []
@@ -44,26 +52,38 @@ export default function Result() {
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState('');
+  const [cliqAlias, setCliqAlias] = useState('');
 
   useEffect(() => {
     if (!result) navigate('/');
   }, [result, navigate]);
 
+  const isCash = result?.gift?.id === 'cash';
+
+  useEffect(() => {
+    if (!isCash) return;
+    getJson('/api/settings/public')
+      .then((res) => setCliqAlias(res.cliqAlias))
+      .catch(() => setError('Could not load the payment details. Please refresh and try again.'));
+  }, [isCash]);
+
   if (!result) return null;
 
   const { gift } = result;
-  const message = [
-    '🎁 Birthday Gift Assignment 🎁',
-    '',
-    "I spun the wheel and apparently I'm responsible for getting you:",
-    '',
-    `🎁 ${gift.name}`,
-    '',
-    'Apparently the wheel has spoken 😂',
-    '',
-    'Get it here:',
-    gift.productUrl,
-  ].join('\n');
+  const message = isCash
+    ? ['💰 Birthday Cash Assignment 💰', '', 'The wheel landed on CASH. Adult decisions win again.', '', `Cliq: ${cliqAlias}`].join('\n')
+    : [
+        '🎁 Birthday Gift Assignment 🎁',
+        '',
+        "I spun the wheel and apparently I'm responsible for getting you:",
+        '',
+        `🎁 ${gift.name}`,
+        '',
+        'Apparently the wheel has spoken 😂',
+        '',
+        'Get it here:',
+        gift.productUrl,
+      ].join('\n');
   const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(message)}`;
 
   async function handleConfirmSubmit() {
@@ -71,7 +91,11 @@ export default function Result() {
     setSubmitting(true);
     setError('');
     try {
-      await postJson('/api/participants', { name, outcome: 'gift', giftId: gift.id });
+      if (isCash) {
+        await postJson('/api/participants', { name, outcome: 'cash' });
+      } else {
+        await postJson('/api/participants', { name, outcome: 'gift', giftId: gift.id });
+      }
       const nextCompleted = spinsCompleted + 1;
       setSpinsCompleted(nextCompleted);
       if (nextCompleted < spinsAllowed) {
@@ -116,7 +140,7 @@ export default function Result() {
       </motion.h1>
 
       <p className="text-lg font-semibold text-white/90">Hey {name},</p>
-      <p className="text-lg font-semibold text-white/90">Your gift is:</p>
+      <p className="text-lg font-semibold text-white/90">{isCash ? 'The wheel says:' : 'Your gift is:'}</p>
 
       <motion.div
         initial={{ y: 40, opacity: 0, rotate: -6 }}
@@ -124,11 +148,21 @@ export default function Result() {
         transition={{ delay: 0.3, type: 'spring', stiffness: 180 }}
         className="w-full max-w-xs rounded-3xl bg-white/15 p-6 shadow-2xl backdrop-blur"
       >
-        {gift.imageUrl && (
-          <img src={gift.imageUrl} alt={gift.name} className="mx-auto mb-4 h-40 w-40 rounded-2xl object-cover shadow-lg" />
+        {isCash ? (
+          <>
+            <p className="font-display text-2xl font-extrabold">💰 CASH</p>
+            <p className="mt-2 text-sm font-semibold text-white/80">{cashLine}</p>
+            {cliqAlias && <p className="mt-4 font-display text-xl font-extrabold">Cliq: {cliqAlias}</p>}
+          </>
+        ) : (
+          <>
+            {gift.imageUrl && (
+              <img src={gift.imageUrl} alt={gift.name} className="mx-auto mb-4 h-40 w-40 rounded-2xl object-cover shadow-lg" />
+            )}
+            <p className="font-display text-2xl font-extrabold">{gift.name}</p>
+            <p className="mt-2 text-sm font-semibold text-white/80">{joke}</p>
+          </>
         )}
-        <p className="font-display text-2xl font-extrabold">{gift.name}</p>
-        <p className="mt-2 text-sm font-semibold text-white/80">{joke}</p>
       </motion.div>
 
       {error && (
@@ -177,7 +211,9 @@ export default function Result() {
       )}
 
       {submitted && (
-        <p className="font-display text-xl font-extrabold text-green-200">✅ Locked in! Go spend responsibly 😂</p>
+        <p className="font-display text-xl font-extrabold text-green-200">
+          {isCash ? '✅ Locked in!' : '✅ Locked in! Go spend responsibly 😂'}
+        </p>
       )}
 
       <button type="button" onClick={handleBackToStart} className="text-sm font-semibold text-white/70 underline">
@@ -186,9 +222,13 @@ export default function Result() {
 
       <ConfirmDialog
         open={confirming}
-        title="Are you sure??"
-        description="Hitting submit means you're LEGALLY buying this. Probably. 😂"
-        confirmLabel="Yes, lock it in"
+        title={isCash ? 'You sure about this?' : 'Are you sure??'}
+        description={
+          isCash
+            ? "Hitting submit means cash it is 😏 No take-backs."
+            : "Hitting submit means you're LEGALLY buying this. Probably. 😂"
+        }
+        confirmLabel={isCash ? 'Yep, cash it is' : 'Yes, lock it in'}
         onConfirm={handleConfirmSubmit}
         onCancel={() => setConfirming(false)}
       />
