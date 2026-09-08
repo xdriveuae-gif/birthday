@@ -10,12 +10,27 @@ const JOKES = [
   "Yep... that's what you're buying me 😂",
   'The wheel has spoken. Democracy was never an option.',
   'May the odds be ever in my favor 😈',
+  "Congratulations, your wallet has been selected.",
+  "This message will self-destruct... into your bank statement.",
+  "I did not rig this. Probably.",
+  "Fate has excellent taste, don't you think?",
+  "Go forth and shop. The wheel commands it.",
+];
+
+const BACK_TO_START_LABELS = [
+  'Back to start',
+  'Spin someone else in',
+  'Send another victim',
 ];
 
 export default function Result() {
   const { name, result, setName, setResult } = useAppContext();
   const navigate = useNavigate();
   const joke = useMemo(() => JOKES[Math.floor(Math.random() * JOKES.length)], []);
+  const backLabel = useMemo(
+    () => BACK_TO_START_LABELS[Math.floor(Math.random() * BACK_TO_START_LABELS.length)],
+    []
+  );
 
   useEffect(() => {
     if (!result) navigate('/');
@@ -25,15 +40,15 @@ export default function Result() {
 
   const { gift } = result;
   const message = [
-    '🎁 Birthday Gift Assignment 🎁',
+    '🎁 OFFICIAL Birthday Gift Assignment 🎁',
     '',
-    "I spun the wheel and apparently I'm responsible for getting you:",
+    "I spun a wheel (a real, physical decision-making device) and it has ruled, with zero appeals process, that I'm getting you:",
     '',
     `🎁 ${gift.name}`,
     '',
-    'Apparently the wheel has spoken 😂',
+    'The wheel has spoken. I am but a humble servant of its will 😂',
     '',
-    'Get it here:',
+    'Get it here (this link is basically a court order now):',
     gift.productUrl,
   ].join('\n');
   const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(message)}`;
@@ -86,7 +101,7 @@ export default function Result() {
       </motion.a>
 
       <button type="button" onClick={handleBackToStart} className="text-sm font-semibold text-white/70 underline">
-        Back to start
+        {backLabel}
       </button>
     </div>
   );

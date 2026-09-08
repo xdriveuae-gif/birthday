@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAppContext } from '../state/AppContext.jsx';
@@ -7,6 +7,34 @@ import { getTargetRotation, SPIN_ANIMATION_SECONDS } from '../components/Wheel/w
 import { FloatingBirthdayBits } from '../components/FloatingBirthdayBits.jsx';
 import { getJson, postJson, ApiError } from '../lib/api.js';
 import { playWhirStart, playTick, playCelebration } from '../lib/sound.js';
+
+const FLAVOR_LINES = [
+  'Your wallet is about to get lighter 💸',
+  "Let's see how expensive your friendship really is.",
+  "May the odds be ever in my favor 😈",
+  "Good luck... you're gonna need it 😂",
+  "Somewhere in this wheel is your financial doom.",
+  "Destiny has a spending limit, apparently.",
+];
+
+const LOADING_LINES = [
+  'Loading the wheel of destiny...',
+  'Summoning the wheel gods...',
+  'Calculating your financial future...',
+  'Warming up the wheel of misfortune...',
+];
+
+const SPINNING_LABELS = [
+  'SPINNING...',
+  'CALCULATING REGRET...',
+  'CONSULTING THE UNIVERSE...',
+  'ROLLING THE DICE OF DESTINY...',
+  'DECIDING YOUR FATE...',
+];
+
+function pickRandom(list) {
+  return list[Math.floor(Math.random() * list.length)];
+}
 
 export default function WheelPage() {
   const { name, setResult } = useAppContext();
@@ -17,8 +45,11 @@ export default function WheelPage() {
   const [spinning, setSpinning] = useState(false);
   const [rotation, setRotation] = useState(0);
   const [error, setError] = useState('');
+  const [spinningLabel, setSpinningLabel] = useState('SPINNING...');
   const tickTimerRef = useRef(null);
   const spinTimeoutRef = useRef(null);
+  const flavorLine = useMemo(() => pickRandom(FLAVOR_LINES), []);
+  const loadingLine = useMemo(() => pickRandom(LOADING_LINES), []);
 
   useEffect(() => {
     if (!name) {
@@ -54,6 +85,7 @@ export default function WheelPage() {
     if (spinning) return;
     setError('');
     setSpinning(true);
+    setSpinningLabel(pickRandom(SPINNING_LABELS));
     try {
       const response = await postJson('/api/spin', { name });
       const finalSegments = response.wheelSegments;
@@ -89,15 +121,13 @@ export default function WheelPage() {
   return (
     <div className="relative flex min-h-screen flex-col items-center justify-center gap-8 overflow-hidden px-6 py-12 text-center text-white">
       <FloatingBirthdayBits count={8} />
-      <h2 className="font-display text-3xl font-extrabold drop-shadow sm:text-4xl">
-        Your wallet is about to get lighter 💸
-      </h2>
+      <h2 className="font-display text-3xl font-extrabold drop-shadow sm:text-4xl">{flavorLine}</h2>
 
-      {loading && <p className="text-lg font-semibold">Loading the wheel of destiny...</p>}
+      {loading && <p className="text-lg font-semibold">{loadingLine}</p>}
 
       {!loading && segments.length === 0 && (
         <p className="max-w-sm text-lg font-semibold text-yellow-200">
-          No gifts are configured yet — bug the birthday human about it! 😅
+          No gifts are configured yet — the birthday human forgot their homework. Go bug them! 😅
         </p>
       )}
 
@@ -118,7 +148,7 @@ export default function WheelPage() {
           whileTap={{ scale: spinning ? 1 : 0.92 }}
           className="rounded-full bg-party-yellow px-12 py-5 text-2xl font-extrabold text-purple-900 shadow-lg shadow-black/20 transition disabled:opacity-50"
         >
-          {spinning ? 'SPINNING...' : wheelEnabled ? 'SPIN THE WHEEL 🎰' : 'The wheel is taking a nap 😴'}
+          {spinning ? spinningLabel : wheelEnabled ? 'SPIN THE WHEEL 🎰' : 'The wheel is taking a nap 😴'}
         </motion.button>
       )}
     </div>
