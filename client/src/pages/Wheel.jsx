@@ -37,7 +37,7 @@ function pickRandom(list) {
 }
 
 export default function WheelPage() {
-  const { name, setResult } = useAppContext();
+  const { name, setResult, spinsAllowed, spinsCompleted } = useAppContext();
   const navigate = useNavigate();
   const [segments, setSegments] = useState([]);
   const [wheelEnabled, setWheelEnabled] = useState(true);
@@ -109,7 +109,7 @@ export default function WheelPage() {
       spinTimeoutRef.current = window.setTimeout(() => {
         clearInterval(tickTimerRef.current);
         playCelebration();
-        setResult({ participant: response.participant, gift: response.gift });
+        setResult({ gift: response.gift });
         navigate('/result');
       }, SPIN_ANIMATION_SECONDS * 1000 + 200);
     } catch (err) {
@@ -122,6 +122,12 @@ export default function WheelPage() {
     <div className="relative flex min-h-screen flex-col items-center justify-center gap-8 overflow-hidden px-6 py-12 text-center text-white">
       <FloatingBirthdayBits count={8} />
       <h2 className="font-display text-3xl font-extrabold drop-shadow sm:text-4xl">{flavorLine}</h2>
+
+      {spinsAllowed > 1 && (
+        <p className="text-sm font-bold text-white/70">
+          🎁 Gift {spinsCompleted + 1} of {spinsAllowed}
+        </p>
+      )}
 
       {loading && <p className="text-lg font-semibold">{loadingLine}</p>}
 
