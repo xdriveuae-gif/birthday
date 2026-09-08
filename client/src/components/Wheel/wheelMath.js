@@ -1,3 +1,5 @@
+export const SPIN_ANIMATION_SECONDS = 5;
+
 export function getSegmentAngles(index, total) {
   const segmentSize = 360 / total;
   const startAngle = index * segmentSize;

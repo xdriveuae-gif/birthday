@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { getSegmentAngles, describeSlicePath, colorForSegment } from './wheelMath.js';
+import { getSegmentAngles, describeSlicePath, colorForSegment, SPIN_ANIMATION_SECONDS } from './wheelMath.js';
 
 const SIZE = 320;
 const CENTER = SIZE / 2;
@@ -19,7 +19,7 @@ export function Wheel({ segments, rotation, spinning }) {
         height={SIZE}
         viewBox={`0 0 ${SIZE} ${SIZE}`}
         animate={{ rotate: rotation }}
-        transition={spinning ? { duration: 5, ease: [0.15, 0.85, 0.25, 1] } : { duration: 0 }}
+        transition={spinning ? { duration: SPIN_ANIMATION_SECONDS, ease: [0.15, 0.85, 0.25, 1] } : { duration: 0 }}
         className="rounded-full border-8 border-white shadow-2xl"
       >
         {segments.map((segment, index) => {

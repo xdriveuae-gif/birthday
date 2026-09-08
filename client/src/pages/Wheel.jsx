@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAppContext } from '../state/AppContext.jsx';
 import { Wheel } from '../components/Wheel/Wheel.jsx';
-import { getTargetRotation } from '../components/Wheel/wheelMath.js';
+import { getTargetRotation, SPIN_ANIMATION_SECONDS } from '../components/Wheel/wheelMath.js';
 import { FloatingBirthdayBits } from '../components/FloatingBirthdayBits.jsx';
 import { getJson, postJson, ApiError } from '../lib/api.js';
 import { playWhirStart, playTick, playCelebration } from '../lib/sound.js';
@@ -18,6 +18,7 @@ export default function WheelPage() {
   const [rotation, setRotation] = useState(0);
   const [error, setError] = useState('');
   const tickTimerRef = useRef(null);
+  const spinTimeoutRef = useRef(null);
 
   useEffect(() => {
     if (!name) {
@@ -41,7 +42,13 @@ export default function WheelPage() {
     loadIdleState();
   }, [name, navigate]);
 
-  useEffect(() => () => clearInterval(tickTimerRef.current), []);
+  useEffect(
+    () => () => {
+      clearInterval(tickTimerRef.current);
+      clearTimeout(spinTimeoutRef.current);
+    },
+    []
+  );
 
   async function handleSpin() {
     if (spinning) return;
@@ -67,12 +74,12 @@ export default function WheelPage() {
       }, 180);
 
       setRotation(nextRotation);
-      window.setTimeout(() => {
+      spinTimeoutRef.current = window.setTimeout(() => {
         clearInterval(tickTimerRef.current);
         playCelebration();
         setResult({ participant: response.participant, gift: response.gift });
         navigate('/result');
-      }, 5200);
+      }, SPIN_ANIMATION_SECONDS * 1000 + 200);
     } catch (err) {
       setSpinning(false);
       setError(err instanceof ApiError ? err.message : 'Something went wrong. Please try again.');
