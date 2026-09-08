@@ -46,7 +46,30 @@ export function initDb(dbPath) {
   insertDefault.run('allow_repeat_gifts', 'false');
   insertDefault.run('wheel_enabled', 'true');
   insertDefault.run('cliq_alias', 'OH98');
+  migrateParticipantsTable(db);
   return db;
+}
+
+function migrateParticipantsTable(db) {
+  const columns = db.prepare('PRAGMA table_info(participants)').all();
+  const hasOutcome = columns.some((c) => c.name === 'outcome');
+  const giftIdColumn = columns.find((c) => c.name === 'gift_id');
+  const giftIdIsNullable = !giftIdColumn || giftIdColumn.notnull === 0;
+  if (hasOutcome && giftIdIsNullable) return;
+
+  db.exec(`
+    CREATE TABLE participants_migrated (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      gift_id INTEGER REFERENCES gifts(id),
+      outcome TEXT NOT NULL DEFAULT 'gift',
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    INSERT INTO participants_migrated (id, name, gift_id, outcome, created_at)
+      SELECT id, name, gift_id, 'gift', created_at FROM participants;
+    DROP TABLE participants;
+    ALTER TABLE participants_migrated RENAME TO participants;
+  `);
 }
 
 export function runInTransaction(db, fn) {

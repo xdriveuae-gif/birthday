@@ -1,7 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 import { initDb, seedAdminIfEmpty, runInTransaction } from '../src/db/index.js';
 import { getAllSettings, updateSettings } from '../src/db/settings.js';
+import { insertParticipant, listParticipants } from '../src/db/participants.js';
 
 test('initDb creates tables and seeds default settings', () => {
   const db = initDb(':memory:');
@@ -80,4 +85,50 @@ test('participants.gift_id is nullable and outcome defaults to gift', () => {
   assert.equal(rows[0].outcome, 'gift');
   assert.equal(rows[1].gift_id, null);
   assert.equal(rows[1].outcome, 'gift');
+});
+
+test('initDb migrates a pre-existing database with the old participants schema', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bday-migration-'));
+  const dbPath = path.join(root, 'app.db');
+
+  const oldDb = new DatabaseSync(dbPath);
+  oldDb.exec(`
+    CREATE TABLE gifts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      image_url TEXT,
+      product_url TEXT NOT NULL,
+      active INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE TABLE participants (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      gift_id INTEGER NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+  `);
+  const gift = oldDb.prepare('INSERT INTO gifts (name, product_url, active) VALUES (?, ?, ?)').run('Mouse', 'https://example.com/mouse', 1);
+  oldDb.prepare('INSERT INTO participants (name, gift_id) VALUES (?, ?)').run('OldRecord', gift.lastInsertRowid);
+  oldDb.close();
+
+  const db = initDb(dbPath);
+
+  const columns = db.prepare('PRAGMA table_info(participants)').all();
+  const outcomeColumn = columns.find((c) => c.name === 'outcome');
+  const giftIdColumn = columns.find((c) => c.name === 'gift_id');
+  assert.ok(outcomeColumn);
+  assert.equal(giftIdColumn.notnull, 0);
+
+  const rows = listParticipants(db);
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].name, 'OldRecord');
+  assert.equal(rows[0].outcome, 'gift');
+
+  const cashParticipant = insertParticipant(db, { name: 'CashPerson', outcome: 'cash' });
+  assert.equal(cashParticipant.giftId, null);
+
+  db.close();
+  fs.rmSync(root, { recursive: true, force: true });
 });
