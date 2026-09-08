@@ -54,3 +54,22 @@ test('runInTransaction rolls back on thrown error and rethrows', () => {
   const { count } = db.prepare('SELECT COUNT(*) AS count FROM admin_users').get();
   assert.equal(count, 0);
 });
+
+test('initDb seeds a default cliq_alias setting', () => {
+  const db = initDb(':memory:');
+  const row = db.prepare("SELECT value FROM settings WHERE key = 'cliq_alias'").get();
+  assert.equal(row.value, 'OH98');
+});
+
+test('participants.gift_id is nullable and outcome defaults to gift', () => {
+  const db = initDb(':memory:');
+  const gift = db
+    .prepare('INSERT INTO gifts (name, product_url, active) VALUES (?, ?, ?)')
+    .run('AirPods', 'https://example.com/airpods', 1);
+  db.prepare('INSERT INTO participants (name, gift_id) VALUES (?, ?)').run('Ahmad', gift.lastInsertRowid);
+  db.prepare('INSERT INTO participants (name, gift_id) VALUES (?, ?)').run('Sara', null);
+  const rows = db.prepare('SELECT name, gift_id, outcome FROM participants ORDER BY id').all();
+  assert.equal(rows[0].outcome, 'gift');
+  assert.equal(rows[1].gift_id, null);
+  assert.equal(rows[1].outcome, 'gift');
+});

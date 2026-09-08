@@ -28,7 +28,8 @@ export function initDb(dbPath) {
     CREATE TABLE IF NOT EXISTS participants (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
-      gift_id INTEGER NOT NULL REFERENCES gifts(id),
+      gift_id INTEGER REFERENCES gifts(id),
+      outcome TEXT NOT NULL DEFAULT 'gift',
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
     CREATE TABLE IF NOT EXISTS settings (
@@ -44,6 +45,7 @@ export function initDb(dbPath) {
   const insertDefault = db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)');
   insertDefault.run('allow_repeat_gifts', 'false');
   insertDefault.run('wheel_enabled', 'true');
+  insertDefault.run('cliq_alias', 'OH98');
   return db;
 }
 
