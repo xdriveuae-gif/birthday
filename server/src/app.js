@@ -6,6 +6,7 @@ import path from 'node:path';
 import { requireAdmin } from './middleware/requireAdmin.js';
 import { SqliteSessionStore } from './lib/sqliteSessionStore.js';
 import { createSpinRouter } from './routes/spin.js';
+import { createParticipantsRouter } from './routes/participants.js';
 import { createPublicGiftsRouter } from './routes/publicGifts.js';
 import { createPublicSettingsRouter } from './routes/publicSettings.js';
 import { createAdminAuthRouter } from './routes/adminAuth.js';
@@ -45,6 +46,7 @@ export function createApp({ db, uploadsDir, sessionSecret, clientDistDir, isProd
   const loginLimiter = rateLimit({ windowMs: 15 * 60_000, max: 10, standardHeaders: true, legacyHeaders: false });
 
   app.use('/api/spin', spinLimiter, createSpinRouter(db));
+  app.use('/api/participants', spinLimiter, createParticipantsRouter(db));
   app.use('/api/gifts/public', createPublicGiftsRouter(db));
   app.use('/api/settings/public', createPublicSettingsRouter(db));
 

@@ -47,7 +47,7 @@ test('admin routes are 401 without login, then reachable after login', async () 
   assert.equal(authed.status, 200);
 });
 
-test('full flow: admin creates a gift, then a public spin wins it', async () => {
+test('full flow: admin creates a gift, guest picks it via spin then confirms via participants', async () => {
   const app = buildRealApp();
   const agent = request.agent(app);
   await agent.post('/api/admin/login').send({ username: 'admin', password: 'secret123' }).expect(200);
@@ -58,12 +58,29 @@ test('full flow: admin creates a gift, then a public spin wins it', async () => 
     .field('productUrl', 'https://example.com/airpods')
     .field('active', 'true')
     .expect(201);
-  assert.equal(createRes.body.gift.name, 'AirPods');
+  const giftId = createRes.body.gift.id;
 
   const spinRes = await request(app).post('/api/spin').send({ name: 'Ahmad' }).expect(200);
-  assert.equal(spinRes.body.gift.name, 'AirPods');
+  assert.equal(spinRes.body.gift.id, giftId);
+
+  const confirmRes = await request(app)
+    .post('/api/participants')
+    .send({ name: 'Ahmad', outcome: 'gift', giftId })
+    .expect(201);
+  assert.equal(confirmRes.body.gift.name, 'AirPods');
 
   const participantsRes = await agent.get('/api/admin/participants').expect(200);
   assert.equal(participantsRes.body.total, 1);
-  assert.equal(participantsRes.body.participants[0].name, 'Ahmad');
+  assert.equal(participantsRes.body.participants[0].outcome, 'gift');
+});
+
+test('cash flow reaches the admin participants list', async () => {
+  const app = buildRealApp();
+  await request(app).post('/api/participants').send({ name: 'Sara', outcome: 'cash' }).expect(201);
+
+  const agent = request.agent(app);
+  await agent.post('/api/admin/login').send({ username: 'admin', password: 'secret123' }).expect(200);
+  const participantsRes = await agent.get('/api/admin/participants').expect(200);
+  assert.equal(participantsRes.body.participants[0].outcome, 'cash');
+  assert.equal(participantsRes.body.participants[0].giftName, null);
 });
