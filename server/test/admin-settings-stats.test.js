@@ -20,11 +20,11 @@ test('GET/PUT settings round-trip', async () => {
   const db = initDb(':memory:');
   const app = buildApp(db);
   const getRes = await request(app).get('/api/admin/settings');
-  assert.deepEqual(getRes.body, { allowRepeatGifts: false, wheelEnabled: true });
+  assert.deepEqual(getRes.body, { allowRepeatGifts: false, wheelEnabled: true, cliqAlias: 'OH98' });
 
   const putRes = await request(app).put('/api/admin/settings').send({ allowRepeatGifts: true });
   assert.equal(putRes.status, 200);
-  assert.deepEqual(putRes.body, { allowRepeatGifts: true, wheelEnabled: true });
+  assert.deepEqual(putRes.body, { allowRepeatGifts: true, wheelEnabled: true, cliqAlias: 'OH98' });
 });
 
 test('rejects invalid settings payload', async () => {

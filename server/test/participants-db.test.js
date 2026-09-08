@@ -2,7 +2,15 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { initDb } from '../src/db/index.js';
 import { createGift } from '../src/db/gifts.js';
-import { listWonGiftIds, insertParticipant, listParticipants, countParticipants, deleteParticipant, deleteAllParticipants } from '../src/db/participants.js';
+import {
+  listWonGiftIds,
+  insertParticipant,
+  listParticipants,
+  countParticipants,
+  countByOutcome,
+  deleteParticipant,
+  deleteAllParticipants,
+} from '../src/db/participants.js';
 
 function setup() {
   const db = initDb(':memory:');
@@ -38,4 +46,41 @@ test('countParticipants, deleteParticipant, deleteAllParticipants', () => {
   assert.equal(countParticipants(db), 1);
   deleteAllParticipants(db);
   assert.equal(countParticipants(db), 0);
+});
+
+test('insertParticipant defaults to outcome "gift" and giftId null', () => {
+  const { db, gift } = setup();
+  const withGift = insertParticipant(db, { name: 'Ahmad', giftId: gift.id });
+  assert.equal(withGift.outcome, 'gift');
+  assert.equal(withGift.giftId, gift.id);
+
+  const cash = insertParticipant(db, { name: 'Sara', outcome: 'cash' });
+  assert.equal(cash.outcome, 'cash');
+  assert.equal(cash.giftId, null);
+});
+
+test('listWonGiftIds ignores cash rows', () => {
+  const { db, gift } = setup();
+  insertParticipant(db, { name: 'Sara', outcome: 'cash' });
+  assert.deepEqual(listWonGiftIds(db), new Set());
+  insertParticipant(db, { name: 'Ahmad', giftId: gift.id });
+  assert.deepEqual(listWonGiftIds(db), new Set([gift.id]));
+});
+
+test('countByOutcome counts gift and cash rows separately', () => {
+  const { db, gift } = setup();
+  insertParticipant(db, { name: 'Ahmad', giftId: gift.id });
+  insertParticipant(db, { name: 'Sara', outcome: 'cash' });
+  insertParticipant(db, { name: 'Omar', outcome: 'cash' });
+  assert.equal(countByOutcome(db, 'gift'), 1);
+  assert.equal(countByOutcome(db, 'cash'), 2);
+});
+
+test('listParticipants includes outcome and null gift fields for cash rows', () => {
+  const { db } = setup();
+  insertParticipant(db, { name: 'Sara', outcome: 'cash' });
+  const [row] = listParticipants(db, { sort: 'newest', search: '' });
+  assert.equal(row.outcome, 'cash');
+  assert.equal(row.giftName, null);
+  assert.equal(row.giftImageUrl, null);
 });

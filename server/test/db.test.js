@@ -6,7 +6,15 @@ import { getAllSettings, updateSettings } from '../src/db/settings.js';
 test('initDb creates tables and seeds default settings', () => {
   const db = initDb(':memory:');
   const settings = getAllSettings(db);
-  assert.deepEqual(settings, { allowRepeatGifts: false, wheelEnabled: true });
+  assert.deepEqual(settings, { allowRepeatGifts: false, wheelEnabled: true, cliqAlias: 'OH98' });
+});
+
+test('getAllSettings includes cliqAlias, updateSettings can change it', () => {
+  const db = initDb(':memory:');
+  assert.equal(getAllSettings(db).cliqAlias, 'OH98');
+  updateSettings(db, { cliqAlias: 'AB12' });
+  assert.equal(getAllSettings(db).cliqAlias, 'AB12');
+  assert.equal(getAllSettings(db).wheelEnabled, true);
 });
 
 test('initDb can be called on a fresh :memory: db without error', () => {
@@ -16,9 +24,9 @@ test('initDb can be called on a fresh :memory: db without error', () => {
 test('updateSettings updates only provided keys', () => {
   const db = initDb(':memory:');
   updateSettings(db, { allowRepeatGifts: true });
-  assert.deepEqual(getAllSettings(db), { allowRepeatGifts: true, wheelEnabled: true });
+  assert.deepEqual(getAllSettings(db), { allowRepeatGifts: true, wheelEnabled: true, cliqAlias: 'OH98' });
   updateSettings(db, { wheelEnabled: false });
-  assert.deepEqual(getAllSettings(db), { allowRepeatGifts: true, wheelEnabled: false });
+  assert.deepEqual(getAllSettings(db), { allowRepeatGifts: true, wheelEnabled: false, cliqAlias: 'OH98' });
 });
 
 test('seedAdminIfEmpty inserts once and skips on second call', () => {
