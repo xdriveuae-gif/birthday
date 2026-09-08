@@ -28,7 +28,7 @@ const EMPTY_NAME_ERRORS = [
 ];
 
 export default function Landing() {
-  const { name, setName } = useAppContext();
+  const { name, setName, resetSpinFlow } = useAppContext();
   const [error, setError] = useState('');
   const navigate = useNavigate();
   const tagline = useMemo(() => TAGLINES[Math.floor(Math.random() * TAGLINES.length)], []);
@@ -46,8 +46,9 @@ export default function Landing() {
     }
     setError('');
     setName(trimmed);
+    resetSpinFlow();
     playClick();
-    navigate('/wheel');
+    navigate('/choice');
   }
 
   return (
