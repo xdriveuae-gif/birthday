@@ -29,11 +29,11 @@ test('GET /api/gifts/public only lists active gifts, without productUrl', async 
   assert.equal(res.body.gifts[0].productUrl, undefined);
 });
 
-test('GET /api/settings/public reflects wheelEnabled', async () => {
+test('GET /api/settings/public reflects wheelEnabled and cliqAlias', async () => {
   const db = initDb(':memory:');
-  updateSettings(db, { wheelEnabled: false });
+  updateSettings(db, { wheelEnabled: false, cliqAlias: 'AB12' });
   const res = await request(buildApp(db)).get('/api/settings/public');
-  assert.deepEqual(res.body, { wheelEnabled: false });
+  assert.deepEqual(res.body, { wheelEnabled: false, cliqAlias: 'AB12' });
 });
 
 test('POST /api/spin returns 400 for missing name', async () => {

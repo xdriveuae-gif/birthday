@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { listAllGifts } from '../db/gifts.js';
-import { countParticipants, listWonGiftIds } from '../db/participants.js';
+import { countParticipants, countByOutcome, listWonGiftIds } from '../db/participants.js';
 import { getAllSettings } from '../db/settings.js';
 
 export function createAdminStatsRouter(db) {
@@ -15,8 +15,9 @@ export function createAdminStatsRouter(db) {
       totalParticipants: countParticipants(db),
       totalGifts: gifts.length,
       activeGifts: activeGifts.length,
-      giftsAssigned: countParticipants(db),
+      giftsAssigned: countByOutcome(db, 'gift'),
       giftsRemaining,
+      cashPicks: countByOutcome(db, 'cash'),
     });
   });
   return router;
