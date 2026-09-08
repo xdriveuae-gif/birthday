@@ -1,2 +1,10 @@
 .worktrees/
 .claude/
+node_modules/
+server/node_modules/
+client/node_modules/
+client/dist/
+server/data/
+.env
+npm-debug.log*
+*.log
