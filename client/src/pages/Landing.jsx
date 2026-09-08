@@ -53,7 +53,7 @@ export default function Landing() {
 
   return (
     <div className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden px-6 py-12 text-center text-white">
-      <FloatingBirthdayBits />
+      <FloatingBirthdayBits count={32} />
       <motion.h1
         initial={{ opacity: 0, y: -30, scale: 0.8 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
