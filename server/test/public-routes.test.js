@@ -18,15 +18,17 @@ function buildApp(db) {
   return app;
 }
 
-test('GET /api/gifts/public only lists active gifts, without productUrl', async () => {
+test('GET /api/gifts/public lists active gifts plus a Cash segment, without productUrl', async () => {
   const db = initDb(':memory:');
   createGift(db, { name: 'Active', imageUrl: null, productUrl: 'https://example.com/a', active: true });
   createGift(db, { name: 'Inactive', imageUrl: null, productUrl: 'https://example.com/b', active: false });
   const res = await request(buildApp(db)).get('/api/gifts/public');
   assert.equal(res.status, 200);
-  assert.equal(res.body.gifts.length, 1);
+  assert.equal(res.body.gifts.length, 2);
   assert.equal(res.body.gifts[0].name, 'Active');
   assert.equal(res.body.gifts[0].productUrl, undefined);
+  assert.equal(res.body.gifts[1].id, 'cash');
+  assert.equal(res.body.gifts[1].name, 'Cash');
 });
 
 test('GET /api/settings/public reflects wheelEnabled and cliqAlias', async () => {
@@ -43,14 +45,15 @@ test('POST /api/spin returns 400 for missing name', async () => {
   assert.equal(res.body.error.code, 'INVALID_NAME');
 });
 
-test('POST /api/spin returns a candidate gift and wheelSegments, without saving a participant', async () => {
+test('POST /api/spin returns a candidate gift (real or cash) and wheelSegments, without saving a participant', async () => {
   const db = initDb(':memory:');
   createGift(db, { name: 'AirPods', imageUrl: null, productUrl: 'https://example.com/airpods', active: true });
   const res = await request(buildApp(db)).post('/api/spin').send({ name: 'Ahmad' });
   assert.equal(res.status, 200);
-  assert.equal(res.body.gift.name, 'AirPods');
-  assert.equal(res.body.gift.productUrl, 'https://example.com/airpods');
-  assert.equal(res.body.wheelSegments.length, 1);
+  assert.ok(['AirPods', 'Cash'].includes(res.body.gift.name));
+  assert.equal(res.body.wheelSegments.length, 2);
+  assert.ok(res.body.wheelSegments.some((g) => g.name === 'AirPods'));
+  assert.ok(res.body.wheelSegments.some((g) => g.id === 'cash'));
   assert.equal(res.body.participant, undefined);
 });
 
@@ -61,12 +64,13 @@ test('POST /api/spin can be called repeatedly without reducing eligibility', asy
   await request(app).post('/api/spin').send({ name: 'Ahmad' }).expect(200);
   const second = await request(app).post('/api/spin').send({ name: 'Ahmad' });
   assert.equal(second.status, 200);
-  assert.equal(second.body.gift.name, 'AirPods');
+  assert.equal(second.body.wheelSegments.length, 2);
 });
 
-test('POST /api/spin returns 409 when there are no gifts at all', async () => {
+test('POST /api/spin always lands on Cash when there are no real gifts', async () => {
   const db = initDb(':memory:');
   const res = await request(buildApp(db)).post('/api/spin').send({ name: 'Ahmad' });
-  assert.equal(res.status, 409);
-  assert.equal(res.body.error.code, 'NO_GIFTS_LEFT');
+  assert.equal(res.status, 200);
+  assert.equal(res.body.gift.id, 'cash');
+  assert.equal(res.body.wheelSegments.length, 1);
 });

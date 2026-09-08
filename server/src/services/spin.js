@@ -1,6 +1,7 @@
 import { getAllSettings } from '../db/settings.js';
 import { listActiveGifts } from '../db/gifts.js';
 import { listWonGiftIds } from '../db/participants.js';
+import { CASH_SEGMENT } from '../lib/cashSegment.js';
 
 export class SpinError extends Error {
   constructor(status, code, message) {
@@ -24,12 +25,9 @@ export function pickGift(db, rawName) {
   const activeGifts = listActiveGifts(db);
   const wonGiftIds = settings.allowRepeatGifts ? new Set() : listWonGiftIds(db);
   const eligible = activeGifts.filter((g) => !wonGiftIds.has(g.id));
+  const wheelSegments = [...eligible, CASH_SEGMENT];
 
-  if (eligible.length === 0) {
-    throw new SpinError(409, 'NO_GIFTS_LEFT', 'There are no gifts left on the wheel right now.');
-  }
+  const winner = wheelSegments[Math.floor(Math.random() * wheelSegments.length)];
 
-  const winner = eligible[Math.floor(Math.random() * eligible.length)];
-
-  return { gift: winner, wheelSegments: eligible };
+  return { gift: winner, wheelSegments };
 }

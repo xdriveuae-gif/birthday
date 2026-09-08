@@ -48,15 +48,12 @@ test('rejects spin when wheel is disabled', () => {
   }
 });
 
-test('returns 409 when no eligible gifts exist', () => {
+test('with no gifts at all, the wheel still has a Cash segment and always lands on it', () => {
   const db = initDb(':memory:'); // no gifts at all
-  try {
-    pickGift(db, 'Ahmad');
-    assert.fail('expected SpinError');
-  } catch (err) {
-    assert.equal(err.status, 409);
-    assert.equal(err.code, 'NO_GIFTS_LEFT');
-  }
+  const result = pickGift(db, 'Ahmad');
+  assert.equal(result.gift.id, 'cash');
+  assert.equal(result.wheelSegments.length, 1);
+  assert.equal(result.wheelSegments[0].id, 'cash');
 });
 
 test('a successful pick does not write a participant and returns the winning gift among wheelSegments', () => {
@@ -64,10 +61,11 @@ test('a successful pick does not write a participant and returns the winning gif
   const result = pickGift(db, 'Ahmad');
   assert.equal(result.participant, undefined);
   assert.equal(countParticipants(db), 0);
-  const winnerIds = gifts.map((g) => g.id);
+  const winnerIds = [...gifts.map((g) => g.id), 'cash'];
   assert.ok(winnerIds.includes(result.gift.id));
   assert.ok(result.wheelSegments.some((g) => g.id === result.gift.id));
-  assert.equal(result.wheelSegments.length, gifts.length);
+  assert.equal(result.wheelSegments.length, gifts.length + 1);
+  assert.ok(result.wheelSegments.some((g) => g.id === 'cash'));
 });
 
 test('repeated picks remain eligible since nothing is written until submit', () => {
@@ -81,11 +79,7 @@ test('repeated picks remain eligible since nothing is written until submit', () 
 test('inactive gifts are never eligible', () => {
   const db = initDb(':memory:');
   createGift(db, { name: 'Inactive', imageUrl: null, productUrl: 'https://example.com/x', active: false });
-  try {
-    pickGift(db, 'Ahmad');
-    assert.fail('expected SpinError');
-  } catch (err) {
-    assert.equal(err.status, 409);
-    assert.equal(err.code, 'NO_GIFTS_LEFT');
-  }
+  const result = pickGift(db, 'Ahmad');
+  assert.equal(result.gift.id, 'cash');
+  assert.equal(result.wheelSegments.length, 1);
 });
