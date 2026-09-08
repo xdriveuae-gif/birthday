@@ -8,6 +8,11 @@ export default function AdminParticipants() {
   const [sort, setSort] = useState('newest');
   const [search, setSearch] = useState('');
   const [deletingId, setDeletingId] = useState(null);
+  const [cliqAlias, setCliqAlias] = useState('');
+
+  useEffect(() => {
+    getJson('/api/admin/settings').then((res) => setCliqAlias(res.cliqAlias));
+  }, []);
 
   async function load() {
     const params = new URLSearchParams({ sort, search });
@@ -74,10 +79,14 @@ export default function AdminParticipants() {
                 <tr key={p.id} className="border-b border-white/10">
                   <td className="p-3 font-bold">{p.name}</td>
                   <td className="p-3">
-                    <div className="flex items-center gap-2">
-                      {p.giftImageUrl && <img src={p.giftImageUrl} alt="" className="h-8 w-8 rounded-lg object-cover" />}
-                      <span>{p.giftName ?? '(gift removed)'}</span>
-                    </div>
+                    {p.outcome === 'cash' ? (
+                      <span>💰 Cash (Cliq: {cliqAlias})</span>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        {p.giftImageUrl && <img src={p.giftImageUrl} alt="" className="h-8 w-8 rounded-lg object-cover" />}
+                        <span>{p.giftName ?? '(gift removed)'}</span>
+                      </div>
+                    )}
                   </td>
                   <td className="p-3">{date.toLocaleDateString()}</td>
                   <td className="p-3">{date.toLocaleTimeString()}</td>

@@ -22,6 +22,7 @@ export default function AdminDashboard() {
       <StatCard emoji="✅" label="Active Gifts" value={stats.activeGifts} />
       <StatCard emoji="🔥" label="Gifts Assigned" value={stats.giftsAssigned} />
       <StatCard emoji="📦" label="Gifts Remaining" value={stats.giftsRemaining ?? '∞'} />
+      <StatCard emoji="💰" label="Cash Picks" value={stats.cashPicks} />
     </div>
   );
 }

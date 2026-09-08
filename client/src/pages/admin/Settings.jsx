@@ -52,6 +52,20 @@ export default function AdminSettings() {
         />
       </div>
 
+      <div className="rounded-2xl bg-white/10 p-5">
+        <p className="mb-1 font-bold">Cliq alias</p>
+        <p className="mb-3 text-sm text-white/70">Shown to guests who choose the Cash option.</p>
+        <div className="flex gap-3">
+          <input
+            type="text"
+            defaultValue={settings.cliqAlias}
+            onBlur={(e) => updateSetting('cliqAlias', e.target.value.trim())}
+            maxLength={50}
+            className="flex-1 rounded-xl border-2 border-white/30 bg-white/10 px-4 py-2 outline-none focus:border-white"
+          />
+        </div>
+      </div>
+
       <div className="rounded-2xl bg-red-500/20 p-5">
         <p className="font-bold">Reset all results</p>
         <p className="mb-3 text-sm text-white/80">
