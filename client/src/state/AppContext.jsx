@@ -8,11 +8,13 @@ export function AppProvider({ children }) {
   const [spinsAllowed, setSpinsAllowed] = useState(1);
   const [spinsCompleted, setSpinsCompleted] = useState(0);
   const [retriesRemaining, setRetriesRemaining] = useState(2);
+  const [sessionId, setSessionId] = useState(() => crypto.randomUUID());
 
   function resetSpinFlow() {
     setSpinsAllowed(1);
     setSpinsCompleted(0);
     setRetriesRemaining(2);
+    setSessionId(crypto.randomUUID());
   }
 
   const value = {
@@ -26,6 +28,7 @@ export function AppProvider({ children }) {
     setSpinsCompleted,
     retriesRemaining,
     setRetriesRemaining,
+    sessionId,
     resetSpinFlow,
   };
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

@@ -1,6 +1,20 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { getJson, del } from '../../lib/api.js';
 import { ConfirmDialog } from '../../components/ConfirmDialog.jsx';
+
+function groupBySession(participants) {
+  const groups = new Map();
+  const order = [];
+  for (const p of participants) {
+    const key = p.sessionId ?? `single-${p.id}`;
+    if (!groups.has(key)) {
+      groups.set(key, []);
+      order.push(key);
+    }
+    groups.get(key).push(p);
+  }
+  return order.map((key) => groups.get(key));
+}
 
 export default function AdminParticipants() {
   const [participants, setParticipants] = useState([]);
@@ -29,6 +43,19 @@ export default function AdminParticipants() {
     await del(`/api/admin/participants/${deletingId}`);
     setDeletingId(null);
     await load();
+  }
+
+  const groups = useMemo(() => groupBySession(participants), [participants]);
+
+  function renderOutcome(p) {
+    return p.outcome === 'cash' ? (
+      <span>💰 Cash (Cliq: {cliqAlias})</span>
+    ) : (
+      <div className="flex items-center gap-2">
+        {p.giftImageUrl && <img src={p.giftImageUrl} alt="" className="h-8 w-8 rounded-lg object-cover" />}
+        <span>{p.giftName ?? '(gift removed)'}</span>
+      </div>
+    );
   }
 
   return (
@@ -73,31 +100,68 @@ export default function AdminParticipants() {
                 </td>
               </tr>
             )}
-            {participants.map((p) => {
-              const date = new Date(p.createdAt);
+            {groups.map((group) => {
+              if (group.length === 1) {
+                const p = group[0];
+                const date = new Date(p.createdAt);
+                return (
+                  <tr key={p.id} className="border-b border-white/10">
+                    <td className="p-3 font-bold">{p.name}</td>
+                    <td className="p-3">{renderOutcome(p)}</td>
+                    <td className="p-3">{date.toLocaleDateString()}</td>
+                    <td className="p-3">{date.toLocaleTimeString()}</td>
+                    <td className="p-3">
+                      <button
+                        type="button"
+                        onClick={() => setDeletingId(p.id)}
+                        className="rounded-full bg-red-500/80 px-3 py-1 text-xs font-bold"
+                      >
+                        Delete
+                      </button>
+                    </td>
+                  </tr>
+                );
+              }
+
+              const sessionKey = group[0].sessionId;
               return (
-                <tr key={p.id} className="border-b border-white/10">
-                  <td className="p-3 font-bold">{p.name}</td>
-                  <td className="p-3">
-                    {p.outcome === 'cash' ? (
-                      <span>💰 Cash (Cliq: {cliqAlias})</span>
-                    ) : (
-                      <div className="flex items-center gap-2">
-                        {p.giftImageUrl && <img src={p.giftImageUrl} alt="" className="h-8 w-8 rounded-lg object-cover" />}
-                        <span>{p.giftName ?? '(gift removed)'}</span>
-                      </div>
-                    )}
+                <tr key={sessionKey} className="border-b border-white/10">
+                  <td className="p-3 align-top font-bold">
+                    <div>{group[0].name}</div>
+                    <span className="mt-1 inline-block rounded-full bg-party-yellow/90 px-2 py-0.5 text-[10px] font-extrabold text-purple-900">
+                      🎁🎁 2-gift pick
+                    </span>
                   </td>
-                  <td className="p-3">{date.toLocaleDateString()}</td>
-                  <td className="p-3">{date.toLocaleTimeString()}</td>
-                  <td className="p-3">
-                    <button
-                      type="button"
-                      onClick={() => setDeletingId(p.id)}
-                      className="rounded-full bg-red-500/80 px-3 py-1 text-xs font-bold"
-                    >
-                      Delete
-                    </button>
+                  <td className="p-3 align-top">
+                    <div className="space-y-2">
+                      {group.map((p) => (
+                        <div key={p.id}>{renderOutcome(p)}</div>
+                      ))}
+                    </div>
+                  </td>
+                  <td className="p-3 align-top">
+                    {group.map((p) => (
+                      <div key={p.id}>{new Date(p.createdAt).toLocaleDateString()}</div>
+                    ))}
+                  </td>
+                  <td className="p-3 align-top">
+                    {group.map((p) => (
+                      <div key={p.id}>{new Date(p.createdAt).toLocaleTimeString()}</div>
+                    ))}
+                  </td>
+                  <td className="p-3 align-top">
+                    <div className="space-y-2">
+                      {group.map((p) => (
+                        <button
+                          key={p.id}
+                          type="button"
+                          onClick={() => setDeletingId(p.id)}
+                          className="rounded-full bg-red-500/80 px-3 py-1 text-xs font-bold"
+                        >
+                          Delete
+                        </button>
+                      ))}
+                    </div>
                   </td>
                 </tr>
               );

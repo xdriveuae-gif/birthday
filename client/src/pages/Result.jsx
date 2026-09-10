@@ -39,6 +39,7 @@ export default function Result() {
     setSpinsCompleted,
     retriesRemaining,
     setRetriesRemaining,
+    sessionId,
     resetSpinFlow,
   } = useAppContext();
   const navigate = useNavigate();
@@ -93,9 +94,9 @@ export default function Result() {
     setError('');
     try {
       if (isCash) {
-        await postJson('/api/participants', { name, outcome: 'cash' });
+        await postJson('/api/participants', { name, outcome: 'cash', sessionId });
       } else {
-        await postJson('/api/participants', { name, outcome: 'gift', giftId: gift.id });
+        await postJson('/api/participants', { name, outcome: 'gift', giftId: gift.id, sessionId });
       }
       const nextCompleted = spinsCompleted + 1;
       setSpinsCompleted(nextCompleted);
