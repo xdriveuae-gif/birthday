@@ -9,12 +9,25 @@ function setup() {
 
 test('createGift then getGiftById round-trips fields', () => {
   const db = setup();
-  const created = createGift(db, { name: 'AirPods', imageUrl: '/uploads/gifts/a.jpg', productUrl: 'https://example.com/airpods', active: true });
+  const created = createGift(db, {
+    name: 'AirPods',
+    imageUrl: '/uploads/gifts/a.jpg',
+    productUrl: 'https://example.com/airpods',
+    active: true,
+    price: '25 JOD',
+  });
   const fetched = getGiftById(db, created.id);
   assert.equal(fetched.name, 'AirPods');
   assert.equal(fetched.imageUrl, '/uploads/gifts/a.jpg');
   assert.equal(fetched.productUrl, 'https://example.com/airpods');
   assert.equal(fetched.active, true);
+  assert.equal(fetched.price, '25 JOD');
+});
+
+test('createGift defaults price to null when omitted', () => {
+  const db = setup();
+  const created = createGift(db, { name: 'AirPods', imageUrl: null, productUrl: 'https://example.com/airpods', active: true });
+  assert.equal(created.price, null);
 });
 
 test('listActiveGifts only returns active gifts', () => {
@@ -36,8 +49,15 @@ test('listAllGifts returns both active and inactive', () => {
 test('updateGift changes fields and setGiftActive toggles active', () => {
   const db = setup();
   const gift = createGift(db, { name: 'PS5', imageUrl: null, productUrl: 'https://example.com/ps5', active: true });
-  const updated = updateGift(db, gift.id, { name: 'PS5 Pro', imageUrl: '/uploads/gifts/ps5.jpg', productUrl: 'https://example.com/ps5pro', active: true });
+  const updated = updateGift(db, gift.id, {
+    name: 'PS5 Pro',
+    imageUrl: '/uploads/gifts/ps5.jpg',
+    productUrl: 'https://example.com/ps5pro',
+    active: true,
+    price: '450 JOD',
+  });
   assert.equal(updated.name, 'PS5 Pro');
+  assert.equal(updated.price, '450 JOD');
   const toggled = setGiftActive(db, gift.id, false);
   assert.equal(toggled.active, false);
 });

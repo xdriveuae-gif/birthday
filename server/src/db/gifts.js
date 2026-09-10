@@ -5,6 +5,7 @@ function mapGiftRow(row) {
     name: row.name,
     imageUrl: row.image_url,
     productUrl: row.product_url,
+    price: row.price ?? null,
     active: !!row.active,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -23,17 +24,17 @@ export function getGiftById(db, id) {
   return mapGiftRow(db.prepare('SELECT * FROM gifts WHERE id = ?').get(id));
 }
 
-export function createGift(db, { name, imageUrl, productUrl, active }) {
+export function createGift(db, { name, imageUrl, productUrl, price, active }) {
   const result = db
-    .prepare('INSERT INTO gifts (name, image_url, product_url, active) VALUES (?, ?, ?, ?)')
-    .run(name, imageUrl ?? null, productUrl, active ? 1 : 0);
+    .prepare('INSERT INTO gifts (name, image_url, product_url, price, active) VALUES (?, ?, ?, ?, ?)')
+    .run(name, imageUrl ?? null, productUrl, price ?? null, active ? 1 : 0);
   return getGiftById(db, result.lastInsertRowid);
 }
 
-export function updateGift(db, id, { name, imageUrl, productUrl, active }) {
+export function updateGift(db, id, { name, imageUrl, productUrl, price, active }) {
   db.prepare(
-    `UPDATE gifts SET name = ?, image_url = ?, product_url = ?, active = ?, updated_at = datetime('now') WHERE id = ?`
-  ).run(name, imageUrl ?? null, productUrl, active ? 1 : 0, id);
+    `UPDATE gifts SET name = ?, image_url = ?, product_url = ?, price = ?, active = ?, updated_at = datetime('now') WHERE id = ?`
+  ).run(name, imageUrl ?? null, productUrl, price ?? null, active ? 1 : 0, id);
   return getGiftById(db, id);
 }
 

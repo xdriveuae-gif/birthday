@@ -41,6 +41,12 @@ const giftFormSchema = z.object({
         return false;
       }
     }, 'Must be a valid http(s) URL'),
+  price: z
+    .string()
+    .trim()
+    .max(30, 'Price is too long')
+    .optional()
+    .transform((v) => (v ? v : null)),
   active: z.enum(['true', 'false']).transform((v) => v === 'true'),
 });
 

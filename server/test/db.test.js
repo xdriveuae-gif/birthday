@@ -129,6 +129,11 @@ test('initDb migrates a pre-existing database with the old participants schema',
   const cashParticipant = insertParticipant(db, { name: 'CashPerson', outcome: 'cash' });
   assert.equal(cashParticipant.giftId, null);
 
+  const giftColumns = db.prepare('PRAGMA table_info(gifts)').all();
+  assert.ok(giftColumns.some((c) => c.name === 'price'), 'gifts table should gain a price column');
+  const migratedGift = db.prepare('SELECT price FROM gifts WHERE name = ?').get('Mouse');
+  assert.equal(migratedGift.price, null, 'existing gift rows keep working with price defaulting to null');
+
   db.close();
   fs.rmSync(root, { recursive: true, force: true });
 });

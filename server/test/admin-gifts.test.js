@@ -44,6 +44,39 @@ test('creates a gift with an image and lists it', async () => {
   assert.equal(listRes.body.gifts.length, 1);
 });
 
+test('creates a gift with a price and updates it', async () => {
+  const { app } = buildApp();
+  const createRes = await request(app)
+    .post('/api/admin/gifts')
+    .field('name', 'AirPods')
+    .field('productUrl', 'https://example.com/airpods')
+    .field('price', '25 JOD')
+    .field('active', 'true');
+  assert.equal(createRes.status, 201);
+  assert.equal(createRes.body.gift.price, '25 JOD');
+
+  const id = createRes.body.gift.id;
+  const updateRes = await request(app)
+    .put(`/api/admin/gifts/${id}`)
+    .field('name', 'AirPods')
+    .field('productUrl', 'https://example.com/airpods')
+    .field('price', '30 JOD')
+    .field('active', 'true');
+  assert.equal(updateRes.status, 200);
+  assert.equal(updateRes.body.gift.price, '30 JOD');
+});
+
+test('price is optional and defaults to null', async () => {
+  const { app } = buildApp();
+  const res = await request(app)
+    .post('/api/admin/gifts')
+    .field('name', 'AirPods')
+    .field('productUrl', 'https://example.com/airpods')
+    .field('active', 'true');
+  assert.equal(res.status, 201);
+  assert.equal(res.body.gift.price, null);
+});
+
 test('rejects an invalid product URL', async () => {
   const { app } = buildApp();
   const res = await request(app)

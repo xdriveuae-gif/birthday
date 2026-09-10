@@ -7,7 +7,7 @@ export function createSpinRouter(db) {
     try {
       const { gift, wheelSegments } = pickGift(db, req.body?.name);
       res.json({
-        gift: { id: gift.id, name: gift.name, imageUrl: gift.imageUrl, productUrl: gift.productUrl },
+        gift: { id: gift.id, name: gift.name, imageUrl: gift.imageUrl, productUrl: gift.productUrl, price: gift.price ?? null },
         wheelSegments: wheelSegments.map((g) => ({ id: g.id, name: g.name, imageUrl: g.imageUrl })),
       });
     } catch (err) {

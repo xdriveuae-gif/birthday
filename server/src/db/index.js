@@ -21,6 +21,7 @@ export function initDb(dbPath) {
       name TEXT NOT NULL,
       image_url TEXT,
       product_url TEXT NOT NULL,
+      price TEXT,
       active INTEGER NOT NULL DEFAULT 1,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -47,7 +48,15 @@ export function initDb(dbPath) {
   insertDefault.run('wheel_enabled', 'true');
   insertDefault.run('cliq_alias', 'OH98');
   migrateParticipantsTable(db);
+  migrateGiftsTable(db);
   return db;
+}
+
+function migrateGiftsTable(db) {
+  const columns = db.prepare('PRAGMA table_info(gifts)').all();
+  const hasPrice = columns.some((c) => c.name === 'price');
+  if (hasPrice) return;
+  db.exec('ALTER TABLE gifts ADD COLUMN price TEXT');
 }
 
 function migrateParticipantsTable(db) {

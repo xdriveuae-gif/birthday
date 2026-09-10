@@ -67,6 +67,18 @@ test('POST /api/spin can be called repeatedly without reducing eligibility', asy
   assert.equal(second.body.wheelSegments.length, 2);
 });
 
+test('POST /api/spin includes the gift price when landing on a real gift', async () => {
+  const db = initDb(':memory:');
+  createGift(db, { name: 'AirPods', imageUrl: null, productUrl: 'https://example.com/airpods', price: '25 JOD', active: true });
+  const app = buildApp(db);
+  let gift;
+  for (let i = 0; i < 50 && (!gift || gift.id === 'cash'); i++) {
+    gift = (await request(app).post('/api/spin').send({ name: 'Ahmad' })).body.gift;
+  }
+  assert.equal(gift.name, 'AirPods');
+  assert.equal(gift.price, '25 JOD');
+});
+
 test('POST /api/spin always lands on Cash when there are no real gifts', async () => {
   const db = initDb(':memory:');
   const res = await request(buildApp(db)).post('/api/spin').send({ name: 'Ahmad' });
