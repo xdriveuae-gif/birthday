@@ -19,7 +19,16 @@ export function createApp({ db, uploadsDir, sessionSecret, clientDistDir, isProd
   const app = express();
   app.disable('x-powered-by');
   app.set('trust proxy', 1);
-  app.use(helmet());
+  app.use(
+    helmet({
+      contentSecurityPolicy: {
+        useDefaults: true,
+        directives: {
+          mediaSrc: ["'self'", 'data:'],
+        },
+      },
+    })
+  );
   app.use(express.json());
   app.use(express.urlencoded({ extended: false }));
 

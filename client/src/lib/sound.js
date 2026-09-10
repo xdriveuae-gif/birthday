@@ -1,4 +1,7 @@
+const SILENT_WAV = 'data:audio/wav;base64,UklGRiYAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YQIAAAAAAA==';
+
 let audioCtx = null;
+let iosSessionUnlocked = false;
 let muted = (() => {
   try {
     return localStorage.getItem('bday-muted') === 'true';
@@ -7,7 +10,23 @@ let muted = (() => {
   }
 })();
 
+// iOS Safari mutes Web Audio API sounds when the phone's silent switch is
+// on, unless an <audio>/<video> element has played first (which puts the
+// page's audio session into the "playback" category instead of "ambient").
+// Playing a near-silent clip on the very first tap works around this.
+function unlockIOSAudioSession() {
+  if (iosSessionUnlocked) return;
+  iosSessionUnlocked = true;
+  try {
+    const audio = new Audio(SILENT_WAV);
+    audio.play().catch(() => {});
+  } catch {
+    // ignore — best-effort unlock only
+  }
+}
+
 function getContext() {
+  unlockIOSAudioSession();
   if (!audioCtx) {
     const AudioContextClass = window.AudioContext || window.webkitAudioContext;
     audioCtx = new AudioContextClass();
