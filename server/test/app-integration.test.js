@@ -60,7 +60,14 @@ test('full flow: admin creates a gift, guest picks it via spin then confirms via
     .expect(201);
   const giftId = createRes.body.gift.id;
 
-  const spinRes = await request(app).post('/api/spin').send({ name: 'Ahmad' }).expect(200);
+  // The wheel always includes a Cash segment alongside real gifts, so a single
+  // spin has a real chance of landing on 'cash' instead of the one gift created
+  // above. Retry until it lands on the gift (bounded, so a real regression still fails).
+  let spinRes;
+  for (let i = 0; i < 50; i++) {
+    spinRes = await request(app).post('/api/spin').send({ name: 'Ahmad' }).expect(200);
+    if (spinRes.body.gift.id === giftId) break;
+  }
   assert.equal(spinRes.body.gift.id, giftId);
 
   const confirmRes = await request(app)

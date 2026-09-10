@@ -78,6 +78,7 @@ export default function Result() {
         "I spun the wheel and apparently I'm responsible for getting you:",
         '',
         `🎁 ${gift.name}`,
+        ...(gift.price ? [`💵 ${gift.price}`] : []),
         '',
         'Apparently the wheel has spoken 😂',
         '',
@@ -160,7 +161,18 @@ export default function Result() {
               <img src={gift.imageUrl} alt={gift.name} className="mx-auto mb-4 h-40 w-40 rounded-2xl object-cover shadow-lg" />
             )}
             <p className="font-display text-2xl font-extrabold">{gift.name}</p>
+            {gift.price && <p className="mt-1 font-display text-lg font-extrabold text-party-yellow">{gift.price}</p>}
             <p className="mt-2 text-sm font-semibold text-white/80">{joke}</p>
+            {gift.productUrl && (
+              <a
+                href={gift.productUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-3 inline-block break-all text-sm font-bold text-white underline underline-offset-2"
+              >
+                View the gift ↗
+              </a>
+            )}
           </>
         )}
       </motion.div>
