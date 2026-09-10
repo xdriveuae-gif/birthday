@@ -4,6 +4,7 @@ import express from 'express';
 import request from 'supertest';
 import { initDb } from '../src/db/index.js';
 import { createGift } from '../src/db/gifts.js';
+import { insertParticipant } from '../src/db/participants.js';
 import { updateSettings } from '../src/db/settings.js';
 import { createSpinRouter } from '../src/routes/spin.js';
 import { createPublicGiftsRouter } from '../src/routes/publicGifts.js';
@@ -29,6 +30,30 @@ test('GET /api/gifts/public lists active gifts plus a Cash segment, without prod
   assert.equal(res.body.gifts[0].productUrl, undefined);
   assert.equal(res.body.gifts[1].id, 'cash');
   assert.equal(res.body.gifts[1].name, 'Cash');
+});
+
+test('GET /api/gifts/public excludes a gift someone already won (matching what a spin can actually pick)', async () => {
+  const db = initDb(':memory:');
+  const keyboard = createGift(db, { name: 'Keyboard', imageUrl: null, productUrl: 'https://example.com/keyboard', active: true });
+  createGift(db, { name: 'Mouse', imageUrl: null, productUrl: 'https://example.com/mouse', active: true });
+  insertParticipant(db, { name: 'SomeoneElse', giftId: keyboard.id, outcome: 'gift' });
+
+  const res = await request(buildApp(db)).get('/api/gifts/public');
+  assert.equal(res.status, 200);
+  const names = res.body.gifts.map((g) => g.name);
+  assert.ok(!names.includes('Keyboard'), 'already-won gift must not appear on the idle wheel');
+  assert.ok(names.includes('Mouse'));
+});
+
+test('GET /api/gifts/public includes an already-won gift when allowRepeatGifts is on', async () => {
+  const db = initDb(':memory:');
+  updateSettings(db, { allowRepeatGifts: true });
+  const keyboard = createGift(db, { name: 'Keyboard', imageUrl: null, productUrl: 'https://example.com/keyboard', active: true });
+  insertParticipant(db, { name: 'SomeoneElse', giftId: keyboard.id, outcome: 'gift' });
+
+  const res = await request(buildApp(db)).get('/api/gifts/public');
+  const names = res.body.gifts.map((g) => g.name);
+  assert.ok(names.includes('Keyboard'));
 });
 
 test('GET /api/settings/public reflects wheelEnabled and cliqAlias', async () => {

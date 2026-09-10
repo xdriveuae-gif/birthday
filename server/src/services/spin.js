@@ -1,7 +1,5 @@
 import { getAllSettings } from '../db/settings.js';
-import { listActiveGifts } from '../db/gifts.js';
-import { listWonGiftIds } from '../db/participants.js';
-import { CASH_SEGMENT } from '../lib/cashSegment.js';
+import { getWheelSegments } from '../lib/eligibility.js';
 
 export class SpinError extends Error {
   constructor(status, code, message) {
@@ -22,11 +20,7 @@ export function pickGift(db, rawName) {
     throw new SpinError(403, 'WHEEL_DISABLED', 'The wheel is taking a nap. Ask the birthday human to turn it back on.');
   }
 
-  const activeGifts = listActiveGifts(db);
-  const wonGiftIds = settings.allowRepeatGifts ? new Set() : listWonGiftIds(db);
-  const eligible = activeGifts.filter((g) => !wonGiftIds.has(g.id));
-  const wheelSegments = [...eligible, CASH_SEGMENT];
-
+  const wheelSegments = getWheelSegments(db);
   const winner = wheelSegments[Math.floor(Math.random() * wheelSegments.length)];
 
   return { gift: winner, wheelSegments };
