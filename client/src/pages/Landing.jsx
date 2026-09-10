@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAppContext } from '../state/AppContext.jsx';
 import { FloatingBirthdayBits } from '../components/FloatingBirthdayBits.jsx';
 import { playClick } from '../lib/sound.js';
+import { useIsMobile } from '../lib/useIsMobile.js';
 
 const TAGLINES = [
   'Spin the wheel and discover your destiny. 😈',
@@ -31,6 +32,7 @@ export default function Landing() {
   const { name, setName, resetSpinFlow } = useAppContext();
   const [error, setError] = useState('');
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
   const tagline = useMemo(() => TAGLINES[Math.floor(Math.random() * TAGLINES.length)], []);
 
   function handleSubmit(e) {
@@ -53,7 +55,7 @@ export default function Landing() {
 
   return (
     <div className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden px-6 py-12 text-center text-white">
-      <FloatingBirthdayBits count={32} />
+      <FloatingBirthdayBits count={isMobile ? 16 : 32} />
       <motion.h1
         initial={{ opacity: 0, y: -30, scale: 0.8 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -98,7 +100,7 @@ export default function Landing() {
           onChange={(e) => setName(e.target.value)}
           placeholder="Enter your name (for the receipts)..."
           maxLength={50}
-          className="w-full rounded-2xl border-4 border-white/40 bg-white/10 px-5 py-3 text-center text-xl font-semibold text-white placeholder-white/60 outline-none backdrop-blur focus:border-white"
+          className="w-full rounded-2xl border-4 border-white/40 bg-white/10 px-4 py-3 text-center text-base font-semibold text-white placeholder-white/60 outline-none backdrop-blur focus:border-white sm:px-5 sm:text-xl"
         />
         {error && (
           <p role="alert" className="font-semibold text-yellow-200">
