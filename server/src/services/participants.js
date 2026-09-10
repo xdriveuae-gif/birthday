@@ -4,7 +4,7 @@ import { getGiftById } from '../db/gifts.js';
 import { listWonGiftIds, insertParticipant } from '../db/participants.js';
 import { SpinError } from './spin.js';
 
-export function confirmParticipation(db, { name: rawName, outcome, giftId }) {
+export function confirmParticipation(db, { name: rawName, outcome, giftId, sessionId }) {
   const name = String(rawName ?? '').trim();
   if (!name || name.length > 50) {
     throw new SpinError(400, 'INVALID_NAME', 'Please enter a name between 1 and 50 characters.');
@@ -12,9 +12,10 @@ export function confirmParticipation(db, { name: rawName, outcome, giftId }) {
   if (outcome !== 'gift' && outcome !== 'cash') {
     throw new SpinError(400, 'INVALID_INPUT', 'outcome must be "gift" or "cash".');
   }
+  const normalizedSessionId = typeof sessionId === 'string' && sessionId.trim() ? sessionId.trim().slice(0, 100) : null;
 
   if (outcome === 'cash') {
-    const participant = insertParticipant(db, { name, giftId: null, outcome: 'cash' });
+    const participant = insertParticipant(db, { name, giftId: null, outcome: 'cash', sessionId: normalizedSessionId });
     return { participant, gift: null };
   }
 
@@ -37,7 +38,7 @@ export function confirmParticipation(db, { name: rawName, outcome, giftId }) {
       throw new SpinError(409, 'GIFT_NO_LONGER_AVAILABLE', 'Someone beat you to it! Spin again 😅');
     }
 
-    const participant = insertParticipant(db, { name, giftId: gift.id, outcome: 'gift' });
+    const participant = insertParticipant(db, { name, giftId: gift.id, outcome: 'gift', sessionId: normalizedSessionId });
     return { participant, gift };
   });
 }

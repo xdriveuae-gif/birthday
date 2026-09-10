@@ -106,3 +106,19 @@ test('cash submissions are not blocked by a disabled wheel', () => {
   const { participant } = confirmParticipation(db, { name: 'Sara', outcome: 'cash' });
   assert.ok(participant);
 });
+
+test('sessionId round-trips onto the saved participant for both outcomes', () => {
+  const { db, gift } = setupWithGift();
+  const cashResult = confirmParticipation(db, { name: 'Sara', outcome: 'cash', sessionId: 'sess-abc' });
+  assert.equal(cashResult.participant.sessionId, 'sess-abc');
+  const giftResult = confirmParticipation(db, { name: 'Ahmad', outcome: 'gift', giftId: gift.id, sessionId: 'sess-xyz' });
+  assert.equal(giftResult.participant.sessionId, 'sess-xyz');
+});
+
+test('sessionId defaults to null when omitted or blank', () => {
+  const { db } = setupWithGift();
+  const noSession = confirmParticipation(db, { name: 'Sara', outcome: 'cash' });
+  assert.equal(noSession.participant.sessionId, null);
+  const blankSession = confirmParticipation(db, { name: 'Omar', outcome: 'cash', sessionId: '   ' });
+  assert.equal(blankSession.participant.sessionId, null);
+});

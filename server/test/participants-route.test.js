@@ -46,3 +46,12 @@ test('rejects an invalid outcome', async () => {
   assert.equal(res.status, 400);
   assert.equal(res.body.error.code, 'INVALID_INPUT');
 });
+
+test('sessionId is saved and returned on the participant', async () => {
+  const db = initDb(':memory:');
+  const res = await request(buildApp(db))
+    .post('/api/participants')
+    .send({ name: 'Sara', outcome: 'cash', sessionId: 'sess-42' });
+  assert.equal(res.status, 201);
+  assert.equal(res.body.participant.sessionId, 'sess-42');
+});

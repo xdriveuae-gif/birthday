@@ -6,6 +6,7 @@ function mapParticipantRow(row) {
     giftName: row.gift_name ?? null,
     giftImageUrl: row.gift_image_url ?? null,
     outcome: row.outcome,
+    sessionId: row.session_id ?? null,
     createdAt: row.created_at,
   };
 }
@@ -19,10 +20,10 @@ export function listWonGiftIds(db) {
   );
 }
 
-export function insertParticipant(db, { name, giftId = null, outcome = 'gift' }) {
+export function insertParticipant(db, { name, giftId = null, outcome = 'gift', sessionId = null }) {
   const result = db
-    .prepare('INSERT INTO participants (name, gift_id, outcome) VALUES (?, ?, ?)')
-    .run(name, giftId, outcome);
+    .prepare('INSERT INTO participants (name, gift_id, outcome, session_id) VALUES (?, ?, ?, ?)')
+    .run(name, giftId, outcome, sessionId);
   const row = db.prepare('SELECT * FROM participants WHERE id = ?').get(result.lastInsertRowid);
   return mapParticipantRow(row);
 }
@@ -31,7 +32,7 @@ export function listParticipants(db, { sort = 'newest', search = '' } = {}) {
   const order = sort === 'oldest' ? 'ASC' : 'DESC';
   const rows = db
     .prepare(
-      `SELECT p.id, p.name, p.gift_id, p.outcome, p.created_at, g.name AS gift_name, g.image_url AS gift_image_url
+      `SELECT p.id, p.name, p.gift_id, p.outcome, p.session_id, p.created_at, g.name AS gift_name, g.image_url AS gift_image_url
        FROM participants p
        LEFT JOIN gifts g ON g.id = p.gift_id
        WHERE p.name LIKE ?

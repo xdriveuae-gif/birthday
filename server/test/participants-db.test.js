@@ -84,3 +84,13 @@ test('listParticipants includes outcome and null gift fields for cash rows', () 
   assert.equal(row.giftName, null);
   assert.equal(row.giftImageUrl, null);
 });
+
+test('insertParticipant stores and round-trips sessionId; defaults to null', () => {
+  const { db, gift } = setup();
+  const withSession = insertParticipant(db, { name: 'Ahmad', giftId: gift.id, sessionId: 'sess-123' });
+  assert.equal(withSession.sessionId, 'sess-123');
+  const withoutSession = insertParticipant(db, { name: 'Sara', outcome: 'cash' });
+  assert.equal(withoutSession.sessionId, null);
+  const [fetchedWithSession] = listParticipants(db, { search: 'Ahmad' });
+  assert.equal(fetchedWithSession.sessionId, 'sess-123');
+});

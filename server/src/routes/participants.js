@@ -10,9 +10,10 @@ export function createParticipantsRouter(db) {
         name: req.body?.name,
         outcome: req.body?.outcome,
         giftId: req.body?.giftId,
+        sessionId: req.body?.sessionId,
       });
       res.status(201).json({
-        participant: { id: participant.id, name: participant.name, createdAt: participant.createdAt },
+        participant: { id: participant.id, name: participant.name, sessionId: participant.sessionId, createdAt: participant.createdAt },
         gift: gift ? { id: gift.id, name: gift.name, imageUrl: gift.imageUrl, productUrl: gift.productUrl } : null,
       });
     } catch (err) {

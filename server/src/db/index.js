@@ -31,6 +31,7 @@ export function initDb(dbPath) {
       name TEXT NOT NULL,
       gift_id INTEGER REFERENCES gifts(id),
       outcome TEXT NOT NULL DEFAULT 'gift',
+      session_id TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
     CREATE TABLE IF NOT EXISTS settings (
@@ -49,7 +50,15 @@ export function initDb(dbPath) {
   insertDefault.run('cliq_alias', 'OH98');
   migrateParticipantsTable(db);
   migrateGiftsTable(db);
+  migrateParticipantsSessionId(db);
   return db;
+}
+
+function migrateParticipantsSessionId(db) {
+  const columns = db.prepare('PRAGMA table_info(participants)').all();
+  const hasSessionId = columns.some((c) => c.name === 'session_id');
+  if (hasSessionId) return;
+  db.exec('ALTER TABLE participants ADD COLUMN session_id TEXT');
 }
 
 function migrateGiftsTable(db) {
