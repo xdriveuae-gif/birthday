@@ -1,11 +1,16 @@
 import { useEffect, useState } from 'react';
-import { getJson, putJson, postJson } from '../../lib/api.js';
+import { getJson, putJson, postJson, patchJson, ApiError } from '../../lib/api.js';
 import { ConfirmDialog } from '../../components/ConfirmDialog.jsx';
+
+const EMPTY_CREDENTIALS_FORM = { currentPassword: '', newUsername: '', newPassword: '' };
 
 export default function AdminSettings() {
   const [settings, setSettings] = useState(null);
   const [message, setMessage] = useState('');
   const [confirmingReset, setConfirmingReset] = useState(false);
+  const [credentialsForm, setCredentialsForm] = useState(EMPTY_CREDENTIALS_FORM);
+  const [credentialsError, setCredentialsError] = useState('');
+  const [credentialsMessage, setCredentialsMessage] = useState('');
 
   useEffect(() => {
     getJson('/api/admin/settings').then(setSettings);
@@ -20,6 +25,23 @@ export default function AdminSettings() {
     await postJson('/api/admin/participants/reset', {});
     setConfirmingReset(false);
     setMessage('All results have been reset. Every gift is available again.');
+  }
+
+  async function handleChangeCredentials(e) {
+    e.preventDefault();
+    setCredentialsError('');
+    setCredentialsMessage('');
+    try {
+      const res = await patchJson('/api/admin/credentials', {
+        currentPassword: credentialsForm.currentPassword,
+        newUsername: credentialsForm.newUsername.trim() || undefined,
+        newPassword: credentialsForm.newPassword || undefined,
+      });
+      setCredentialsMessage(`Credentials updated. Signed in as "${res.username}".`);
+      setCredentialsForm(EMPTY_CREDENTIALS_FORM);
+    } catch (err) {
+      setCredentialsError(err instanceof ApiError ? err.message : 'Could not update credentials.');
+    }
   }
 
   if (!settings) return <p>Loading settings...</p>;
@@ -65,6 +87,38 @@ export default function AdminSettings() {
           />
         </div>
       </div>
+
+      <form onSubmit={handleChangeCredentials} className="space-y-3 rounded-2xl bg-white/10 p-5">
+        <p className="font-bold">Change admin login</p>
+        <p className="text-sm text-white/70">Leave "New username" blank to keep the current one.</p>
+        <input
+          type="password"
+          required
+          placeholder="Current password"
+          value={credentialsForm.currentPassword}
+          onChange={(e) => setCredentialsForm((f) => ({ ...f, currentPassword: e.target.value }))}
+          className="w-full rounded-xl border-2 border-white/30 bg-white/10 px-4 py-2 outline-none focus:border-white"
+        />
+        <input
+          type="text"
+          placeholder="New username (optional)"
+          value={credentialsForm.newUsername}
+          onChange={(e) => setCredentialsForm((f) => ({ ...f, newUsername: e.target.value }))}
+          className="w-full rounded-xl border-2 border-white/30 bg-white/10 px-4 py-2 outline-none focus:border-white"
+        />
+        <input
+          type="password"
+          placeholder="New password (optional, min 6 characters)"
+          value={credentialsForm.newPassword}
+          onChange={(e) => setCredentialsForm((f) => ({ ...f, newPassword: e.target.value }))}
+          className="w-full rounded-xl border-2 border-white/30 bg-white/10 px-4 py-2 outline-none focus:border-white"
+        />
+        {credentialsError && <p className="font-semibold text-yellow-200">{credentialsError}</p>}
+        {credentialsMessage && <p className="font-semibold text-green-200">{credentialsMessage}</p>}
+        <button type="submit" className="rounded-full bg-party-yellow px-6 py-2 font-extrabold text-purple-900">
+          Save
+        </button>
+      </form>
 
       <div className="rounded-2xl bg-red-500/20 p-5">
         <p className="font-bold">Reset all results</p>
