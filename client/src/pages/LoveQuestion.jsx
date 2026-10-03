@@ -54,21 +54,21 @@ export default function LoveQuestion() {
             <div className="flex w-full max-w-sm flex-col gap-4 sm:flex-row">
               <motion.button
                 type="button"
-                onClick={() => handleAnswer(true)}
+                onClick={() => handleAnswer(false)}
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.92 }}
                 className="flex-1 rounded-full bg-party-yellow px-8 py-5 text-xl font-extrabold text-purple-900 shadow-lg shadow-black/20"
               >
-                🎁🎁 2 gifts
+                🎁 Just 1 gift
               </motion.button>
               <motion.button
                 type="button"
-                onClick={() => handleAnswer(false)}
+                onClick={() => handleAnswer(true)}
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.92 }}
                 className="flex-1 rounded-full bg-white/20 px-8 py-5 text-xl font-extrabold text-white shadow-lg shadow-black/20"
               >
-                🎁 Just 1 gift
+                🎁🎁 2 gifts
               </motion.button>
             </div>
           </motion.div>
