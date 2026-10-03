@@ -1,6 +1,7 @@
 import express from 'express';
 import session from 'express-session';
 import helmet from 'helmet';
+import compression from 'compression';
 import rateLimit from 'express-rate-limit';
 import path from 'node:path';
 import { requireAdmin } from './middleware/requireAdmin.js';
@@ -19,6 +20,7 @@ export function createApp({ db, uploadsDir, sessionSecret, clientDistDir, isProd
   const app = express();
   app.disable('x-powered-by');
   app.set('trust proxy', 1);
+  app.use(compression());
   app.use(
     helmet({
       contentSecurityPolicy: {
@@ -66,7 +68,17 @@ export function createApp({ db, uploadsDir, sessionSecret, clientDistDir, isProd
   app.use('/api/admin/stats', requireAdmin, createAdminStatsRouter(db));
 
   if (isProduction && clientDistDir) {
-    app.use(express.static(clientDistDir));
+    app.use(
+      express.static(clientDistDir, {
+        setHeaders: (res, filePath) => {
+          // Vite content-hashes filenames under /assets, so they're safe to
+          // cache forever — a new deploy ships new filenames, never reuses one.
+          if (filePath.includes(`${path.sep}assets${path.sep}`)) {
+            res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+          }
+        },
+      })
+    );
     app.get(/^(?!\/api).*/, (req, res) => res.sendFile(path.join(clientDistDir, 'index.html')));
   }
 
