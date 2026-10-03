@@ -67,6 +67,7 @@ export function initDb(dbPath) {
         image_url TEXT,
         product_url TEXT NOT NULL,
         price TEXT,
+        price_range TEXT,
         active INTEGER NOT NULL DEFAULT 1,
         created_at TEXT NOT NULL DEFAULT (datetime('now')),
         updated_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -111,9 +112,12 @@ function migrateParticipantsSessionId(db) {
 
 function migrateGiftsTable(db) {
   const columns = db.prepare('PRAGMA table_info(gifts)').all();
-  const hasPrice = columns.some((c) => c.name === 'price');
-  if (hasPrice) return;
-  withLockRetry(() => db.exec('ALTER TABLE gifts ADD COLUMN price TEXT'));
+  if (!columns.some((c) => c.name === 'price')) {
+    withLockRetry(() => db.exec('ALTER TABLE gifts ADD COLUMN price TEXT'));
+  }
+  if (!columns.some((c) => c.name === 'price_range')) {
+    withLockRetry(() => db.exec('ALTER TABLE gifts ADD COLUMN price_range TEXT'));
+  }
 }
 
 function migrateParticipantsTable(db) {

@@ -37,7 +37,7 @@ function pickRandom(list) {
 }
 
 export default function WheelPage() {
-  const { name, setResult, spinsAllowed, spinsCompleted } = useAppContext();
+  const { name, setResult, spinsAllowed, spinsCompleted, sessionId, priceRange } = useAppContext();
   const navigate = useNavigate();
   const [segments, setSegments] = useState([]);
   const [wheelEnabled, setWheelEnabled] = useState(true);
@@ -58,8 +58,10 @@ export default function WheelPage() {
     }
     async function loadIdleState() {
       try {
+        const giftsParams = new URLSearchParams({ name, sessionId });
+        if (priceRange) giftsParams.set('priceRange', priceRange);
         const [giftsRes, settingsRes] = await Promise.all([
-          getJson('/api/gifts/public'),
+          getJson(`/api/gifts/public?${giftsParams.toString()}`),
           getJson('/api/settings/public'),
         ]);
         setSegments(giftsRes.gifts);
@@ -71,7 +73,7 @@ export default function WheelPage() {
       }
     }
     loadIdleState();
-  }, [name, navigate]);
+  }, [name, navigate, sessionId, priceRange]);
 
   useEffect(
     () => () => {
@@ -87,7 +89,7 @@ export default function WheelPage() {
     setSpinning(true);
     setSpinningLabel(pickRandom(SPINNING_LABELS));
     try {
-      const response = await postJson('/api/spin', { name });
+      const response = await postJson('/api/spin', { name, sessionId, priceRange });
       const finalSegments = response.wheelSegments;
       setSegments(finalSegments);
       const winningIndex = finalSegments.findIndex((g) => g.id === response.gift.id);

@@ -56,6 +56,39 @@ test('GET /api/gifts/public includes an already-won gift when allowRepeatGifts i
   assert.ok(names.includes('Keyboard'));
 });
 
+test('GET /api/gifts/public?priceRange narrows the wheel to that bracket', async () => {
+  const db = initDb(':memory:');
+  createGift(db, { name: 'Cheap', imageUrl: null, productUrl: 'https://example.com/a', priceRange: '10-25', active: true });
+  createGift(db, { name: 'Pricey', imageUrl: null, productUrl: 'https://example.com/b', priceRange: '50-100', active: true });
+  const res = await request(buildApp(db)).get('/api/gifts/public').query({ priceRange: '10-25' });
+  const names = res.body.gifts.map((g) => g.name);
+  assert.ok(names.includes('Cheap'));
+  assert.ok(!names.includes('Pricey'));
+});
+
+test('GET /api/gifts/public excludes Cash once this sessionId already confirmed a cash outcome', async () => {
+  const db = initDb(':memory:');
+  createGift(db, { name: 'Gift', imageUrl: null, productUrl: 'https://example.com/a', active: true });
+  insertParticipant(db, { name: 'Sara', outcome: 'cash', sessionId: 'sess-public-1' });
+  const res = await request(buildApp(db)).get('/api/gifts/public').query({ sessionId: 'sess-public-1' });
+  assert.ok(!res.body.gifts.some((g) => g.id === 'cash'));
+});
+
+test('GET /api/gifts/public shows Razan\'s forced 25-50-only, no-cash wheel on her second visit', async () => {
+  const db = initDb(':memory:');
+  createGift(db, { name: 'Cheap', imageUrl: null, productUrl: 'https://example.com/a', priceRange: '10-25', active: true });
+  createGift(db, { name: 'Mid', imageUrl: null, productUrl: 'https://example.com/b', priceRange: '25-50', active: true });
+  insertParticipant(db, { name: 'Razan', outcome: 'cash', sessionId: 'sess-razan-public' });
+
+  const res = await request(buildApp(db))
+    .get('/api/gifts/public')
+    .query({ name: 'Razan', sessionId: 'sess-razan-public' });
+  const names = res.body.gifts.map((g) => g.name);
+  assert.ok(names.includes('Mid'));
+  assert.ok(!names.includes('Cheap'));
+  assert.ok(!res.body.gifts.some((g) => g.id === 'cash'));
+});
+
 test('GET /api/settings/public reflects wheelEnabled and cliqAlias', async () => {
   const db = initDb(':memory:');
   updateSettings(db, { wheelEnabled: false, cliqAlias: 'AB12' });
@@ -80,6 +113,14 @@ test('POST /api/spin returns a candidate gift (real or cash) and wheelSegments, 
   assert.ok(res.body.wheelSegments.some((g) => g.name === 'AirPods'));
   assert.ok(res.body.wheelSegments.some((g) => g.id === 'cash'));
   assert.equal(res.body.participant, undefined);
+});
+
+test('POST /api/spin forces Cash for Razan on the first spin of a session', async () => {
+  const db = initDb(':memory:');
+  createGift(db, { name: 'Gift', imageUrl: null, productUrl: 'https://example.com/a', active: true });
+  const res = await request(buildApp(db)).post('/api/spin').send({ name: 'Razan', sessionId: 'sess-razan-spin' });
+  assert.equal(res.status, 200);
+  assert.equal(res.body.gift.id, 'cash');
 });
 
 test('POST /api/spin can be called repeatedly without reducing eligibility', async () => {

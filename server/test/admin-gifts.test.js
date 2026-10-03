@@ -66,6 +66,51 @@ test('creates a gift with a price and updates it', async () => {
   assert.equal(updateRes.body.gift.price, '30 JOD');
 });
 
+test('creates a gift with a priceRange bucket and updates it', async () => {
+  const { app } = buildApp();
+  const createRes = await request(app)
+    .post('/api/admin/gifts')
+    .field('name', 'AirPods')
+    .field('productUrl', 'https://example.com/airpods')
+    .field('priceRange', '25-50')
+    .field('active', 'true');
+  assert.equal(createRes.status, 201);
+  assert.equal(createRes.body.gift.priceRange, '25-50');
+
+  const id = createRes.body.gift.id;
+  const updateRes = await request(app)
+    .put(`/api/admin/gifts/${id}`)
+    .field('name', 'AirPods')
+    .field('productUrl', 'https://example.com/airpods')
+    .field('priceRange', '50-100')
+    .field('active', 'true');
+  assert.equal(updateRes.status, 200);
+  assert.equal(updateRes.body.gift.priceRange, '50-100');
+});
+
+test('rejects an invalid priceRange bucket', async () => {
+  const { app } = buildApp();
+  const res = await request(app)
+    .post('/api/admin/gifts')
+    .field('name', 'AirPods')
+    .field('productUrl', 'https://example.com/airpods')
+    .field('priceRange', '100-200')
+    .field('active', 'true');
+  assert.equal(res.status, 400);
+  assert.equal(res.body.error.code, 'INVALID_INPUT');
+});
+
+test('priceRange is optional and defaults to null', async () => {
+  const { app } = buildApp();
+  const res = await request(app)
+    .post('/api/admin/gifts')
+    .field('name', 'AirPods')
+    .field('productUrl', 'https://example.com/airpods')
+    .field('active', 'true');
+  assert.equal(res.status, 201);
+  assert.equal(res.body.gift.priceRange, null);
+});
+
 test('price is optional and defaults to null', async () => {
   const { app } = buildApp();
   const res = await request(app)

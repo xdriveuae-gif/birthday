@@ -5,6 +5,7 @@ import path from 'node:path';
 import multer from 'multer';
 import { randomUUID } from 'node:crypto';
 import { listAllGifts, getGiftById, createGift, updateGift, setGiftActive, deleteGift } from '../db/gifts.js';
+import { PRICE_RANGES } from '../lib/priceRanges.js';
 
 const ALLOWED_MIME = { 'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp' };
 
@@ -45,6 +46,10 @@ const giftFormSchema = z.object({
     .string()
     .trim()
     .max(30, 'Price is too long')
+    .optional()
+    .transform((v) => (v ? v : null)),
+  priceRange: z
+    .union([z.enum(PRICE_RANGES), z.literal('')])
     .optional()
     .transform((v) => (v ? v : null)),
   active: z.enum(['true', 'false']).transform((v) => v === 'true'),

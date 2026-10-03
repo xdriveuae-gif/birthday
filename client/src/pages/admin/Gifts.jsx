@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { getJson, postForm, putForm, patchJson, del, ApiError } from '../../lib/api.js';
 import { ConfirmDialog } from '../../components/ConfirmDialog.jsx';
 
-const EMPTY_FORM = { name: '', productUrl: '', price: '', active: true, imageFile: null };
+const EMPTY_FORM = { name: '', productUrl: '', price: '', priceRange: '', active: true, imageFile: null };
+const PRICE_RANGES = ['10-25', '25-50', '50-100'];
 
 export default function AdminGifts() {
   const [gifts, setGifts] = useState([]);
@@ -29,7 +30,14 @@ export default function AdminGifts() {
 
   function startEdit(gift) {
     setEditingId(gift.id);
-    setForm({ name: gift.name, productUrl: gift.productUrl, price: gift.price ?? '', active: gift.active, imageFile: null });
+    setForm({
+      name: gift.name,
+      productUrl: gift.productUrl,
+      price: gift.price ?? '',
+      priceRange: gift.priceRange ?? '',
+      active: gift.active,
+      imageFile: null,
+    });
     setImagePreview(gift.imageUrl);
   }
 
@@ -47,6 +55,7 @@ export default function AdminGifts() {
     body.set('name', form.name);
     body.set('productUrl', form.productUrl);
     body.set('price', form.price);
+    body.set('priceRange', form.priceRange);
     body.set('active', String(form.active));
     if (form.imageFile) body.set('image', form.imageFile);
 
@@ -123,6 +132,25 @@ export default function AdminGifts() {
         </div>
 
         <div>
+          <label className="mb-1 block text-sm font-bold" htmlFor="gift-price-range">
+            Price range bucket <span className="font-normal text-white/60">(used to filter the wheel by guest budget)</span>
+          </label>
+          <select
+            id="gift-price-range"
+            value={form.priceRange}
+            onChange={(e) => setForm((f) => ({ ...f, priceRange: e.target.value }))}
+            className="w-full rounded-xl border-2 border-white/30 bg-white/10 px-4 py-2 outline-none focus:border-white"
+          >
+            <option value="" className="text-black">— none (eligible for any range) —</option>
+            {PRICE_RANGES.map((r) => (
+              <option key={r} value={r} className="text-black">
+                {r}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div>
           <label className="mb-1 block text-sm font-bold" htmlFor="gift-image">
             Gift Image
           </label>
@@ -168,6 +196,7 @@ export default function AdminGifts() {
               <th className="p-3">Name</th>
               <th className="p-3">URL</th>
               <th className="p-3">Price</th>
+              <th className="p-3">Range</th>
               <th className="p-3">Active</th>
               <th className="p-3">Actions</th>
             </tr>
@@ -175,7 +204,7 @@ export default function AdminGifts() {
           <tbody>
             {gifts.length === 0 && (
               <tr>
-                <td colSpan={6} className="p-6 text-center text-white/60">
+                <td colSpan={7} className="p-6 text-center text-white/60">
                   No gifts yet — add your first one above.
                 </td>
               </tr>
@@ -196,6 +225,7 @@ export default function AdminGifts() {
                   </a>
                 </td>
                 <td className="p-3">{gift.price || <span className="text-white/40">—</span>}</td>
+                <td className="p-3">{gift.priceRange || <span className="text-white/40">any</span>}</td>
                 <td className="p-3">
                   <button
                     type="button"

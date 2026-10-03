@@ -11,6 +11,14 @@ function mapParticipantRow(row) {
   };
 }
 
+export function listOutcomesBySession(db, sessionId) {
+  if (!sessionId) return [];
+  return db
+    .prepare('SELECT outcome FROM participants WHERE session_id = ? ORDER BY id ASC')
+    .all(sessionId)
+    .map((r) => r.outcome);
+}
+
 export function listWonGiftIds(db) {
   return new Set(
     db
