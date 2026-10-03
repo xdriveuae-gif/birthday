@@ -8,6 +8,16 @@ import { initDb, seedAdminIfEmpty, runInTransaction } from '../src/db/index.js';
 import { getAllSettings, updateSettings } from '../src/db/settings.js';
 import { insertParticipant, listParticipants } from '../src/db/participants.js';
 
+test('initDb avoids WAL mode (unreliable over network filesystems) for file-backed databases', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bday-journal-'));
+  const dbPath = path.join(root, 'app.db');
+  const db = initDb(dbPath);
+  const { journal_mode: journalMode } = db.prepare('PRAGMA journal_mode').get();
+  assert.notEqual(String(journalMode).toLowerCase(), 'wal');
+  db.close();
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
 test('initDb creates tables and seeds default settings', () => {
   const db = initDb(':memory:');
   const settings = getAllSettings(db);

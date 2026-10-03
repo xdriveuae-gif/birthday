@@ -7,7 +7,13 @@ export function initDb(dbPath) {
     fs.mkdirSync(path.dirname(dbPath), { recursive: true });
   }
   const db = new DatabaseSync(dbPath);
-  db.exec('PRAGMA journal_mode = WAL');
+  // WAL mode relies on shared-memory (mmap) and proper advisory file locking,
+  // which SQLite's own docs warn is unreliable over network filesystems —
+  // exactly what a host's "persistent storage" directory often is. DELETE
+  // mode (the long-standing default rollback journal) is slower under heavy
+  // write concurrency, but this app's write volume is tiny (one row per
+  // guest submission) and correctness/compatibility matters far more here.
+  db.exec('PRAGMA journal_mode = DELETE');
   db.exec('PRAGMA foreign_keys = OFF');
   db.exec(`
     CREATE TABLE IF NOT EXISTS admin_users (
