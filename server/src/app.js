@@ -35,6 +35,10 @@ export function createApp({ db, uploadsDir, sessionSecret, clientDistDir, isProd
   app.use(express.urlencoded({ extended: false }));
 
   app.get('/api/health', (req, res) => res.json({ ok: true }));
+  // TEMPORARY — used to discover whether Hostinger's edge injects a
+  // country header before building IP-geolocation detection; remove once
+  // that's confirmed.
+  app.get('/api/_debug-headers', (req, res) => res.json({ ip: req.ip, ips: req.ips, headers: req.headers }));
 
   app.use(
     session({
