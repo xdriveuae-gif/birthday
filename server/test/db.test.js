@@ -18,6 +18,54 @@ test('initDb avoids WAL mode (unreliable over network filesystems) for file-back
   fs.rmSync(root, { recursive: true, force: true });
 });
 
+test('initDb recovers when a real second process is mid-write-lock on the same file', async () => {
+  // A same-process, same-thread simulation of "two connections racing" is
+  // misleading here: Atomics.wait (our retry backoff) blocks the whole
+  // thread, so a setTimeout standing in for "the other process" would never
+  // get to run. Multi-process lock contention needs an actual child process.
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bday-busy-'));
+  const dbPath = path.join(root, 'app.db');
+  const lockHolderScript = path.join(root, 'lock-holder.mjs');
+  fs.writeFileSync(
+    lockHolderScript,
+    `
+    import { DatabaseSync } from 'node:sqlite';
+    const db = new DatabaseSync(process.argv[2]);
+    db.exec('PRAGMA journal_mode = DELETE');
+    db.exec('CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)');
+    db.exec('BEGIN IMMEDIATE');
+    db.prepare("INSERT INTO settings (key, value) VALUES ('probe', 'holder')").run();
+    console.log('locked');
+    setTimeout(() => { db.exec('COMMIT'); db.close(); }, 400);
+    `
+  );
+
+  const { spawn } = await import('node:child_process');
+  const child = spawn(process.execPath, [lockHolderScript, dbPath]);
+  await new Promise((resolve, reject) => {
+    child.stdout.on('data', (chunk) => {
+      if (chunk.toString().includes('locked')) resolve();
+    });
+    child.stderr.on('data', (chunk) => reject(new Error(chunk.toString())));
+    child.on('error', reject);
+  });
+
+  // The child now holds a write lock on dbPath. initDb's own CREATE TABLE
+  // IF NOT EXISTS calls must contend with it and recover via withLockRetry
+  // instead of throwing "database is locked".
+  const start = Date.now();
+  const db = initDb(dbPath);
+  const elapsed = Date.now() - start;
+  assert.ok(elapsed < 5000, `initDb took ${elapsed}ms to recover from real lock contention — too slow`);
+
+  const settings = getAllSettings(db);
+  assert.deepEqual(settings, { allowRepeatGifts: false, wheelEnabled: true, cliqAlias: 'OH98' });
+
+  db.close();
+  await new Promise((resolve) => child.on('exit', resolve));
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
 test('initDb creates tables and seeds default settings', () => {
   const db = initDb(':memory:');
   const settings = getAllSettings(db);
