@@ -10,7 +10,7 @@ export class SpinError extends Error {
   }
 }
 
-export function pickGift(db, rawName, { sessionId = null, priceRange = null } = {}) {
+export function pickGift(db, rawName, { sessionId = null, priceRange = null, country = null } = {}) {
   const name = String(rawName ?? '').trim();
   if (!name || name.length > 50) {
     throw new SpinError(400, 'INVALID_NAME', 'Please enter a name between 1 and 50 characters.');
@@ -24,7 +24,7 @@ export function pickGift(db, rawName, { sessionId = null, priceRange = null } = 
     throw new SpinError(403, 'WHEEL_DISABLED', 'The wheel is taking a nap. Ask the birthday human to turn it back on.');
   }
 
-  const { segments, forcedWinner } = resolveWheelSegments(db, { name, sessionId, priceRange });
+  const { segments, forcedWinner } = resolveWheelSegments(db, { name, sessionId, priceRange, country });
   if (segments.length === 0) {
     throw new SpinError(409, 'NO_GIFTS_LEFT', 'There are no gifts left in that price range right now.');
   }

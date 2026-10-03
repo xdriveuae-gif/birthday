@@ -36,11 +36,14 @@ export function getWheelSegments(db, { priceRange = null, includeCash = true, re
 // endpoint would never actually give out). Encodes both per-guest rules:
 // Razan (and her aliases) always gets Cash on spin 1 of a 2-gift session and
 // a 25-50 gift on spin 2 overriding her chosen range; everyone else just
-// can't land Cash twice in the same session.
-export function resolveWheelSegments(db, { name, sessionId = null, priceRange = null } = {}) {
+// can't land Cash twice in the same session. The same forced outcome also
+// applies to any guest spinning from a UAE IP, as a stand-in for Razan when
+// her name isn't typed exactly — reliable here since she's the only UAE
+// guest at this particular party and everyone else is in Jordan.
+export function resolveWheelSegments(db, { name, sessionId = null, priceRange = null, country = null } = {}) {
   const priorOutcomes = listOutcomesBySession(db, sessionId);
 
-  if (isRazan(name)) {
+  if (isRazan(name) || country === 'AE') {
     if (priorOutcomes.length === 0) {
       return { segments: getWheelSegments(db, { priceRange, includeCash: true }), forcedWinner: CASH_SEGMENT };
     }

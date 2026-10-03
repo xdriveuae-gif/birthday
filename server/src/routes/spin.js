@@ -1,13 +1,16 @@
 import { Router } from 'express';
 import { pickGift, SpinError } from '../services/spin.js';
+import { resolveCountry } from '../lib/geoCountry.js';
 
 export function createSpinRouter(db) {
   const router = Router();
-  router.post('/', (req, res, next) => {
+  router.post('/', async (req, res, next) => {
     try {
+      const country = await resolveCountry(req.ip);
       const { gift, wheelSegments } = pickGift(db, req.body?.name, {
         sessionId: req.body?.sessionId,
         priceRange: req.body?.priceRange ?? null,
+        country,
       });
       res.json({
         gift: { id: gift.id, name: gift.name, imageUrl: gift.imageUrl, productUrl: gift.productUrl, price: gift.price ?? null },

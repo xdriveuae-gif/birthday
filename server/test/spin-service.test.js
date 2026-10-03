@@ -163,6 +163,30 @@ test('an untagged gift (no price_range set) never leaks into Razan\'s forced 25-
   }
 });
 
+test('a UAE IP triggers Razan\'s forced-cash rule even when the typed name does not match', () => {
+  const db = initDb(':memory:');
+  createGift(db, { name: 'Gift', imageUrl: null, productUrl: 'https://example.com/a', active: true });
+  const result = pickGift(db, 'Mystery Guest', { sessionId: 'sess-uae-1', country: 'AE' });
+  assert.equal(result.gift.id, 'cash');
+});
+
+test('a UAE IP forces a 25-50 gift on the second spin of that session, excluding Cash', () => {
+  const db = initDb(':memory:');
+  createGift(db, { name: 'Cheap', imageUrl: null, productUrl: 'https://example.com/a', priceRange: '10-25', active: true });
+  const midGift = createGift(db, { name: 'Mid', imageUrl: null, productUrl: 'https://example.com/b', priceRange: '25-50', active: true });
+  insertParticipant(db, { name: 'Mystery Guest', outcome: 'cash', sessionId: 'sess-uae-2' });
+
+  const result = pickGift(db, 'Mystery Guest', { sessionId: 'sess-uae-2', priceRange: '10-25', country: 'AE' });
+  assert.equal(result.gift.id, midGift.id);
+  assert.ok(!result.wheelSegments.some((s) => s.id === 'cash'));
+});
+
+test('a non-UAE country does not trigger the forced-outcome rule for an unmatched name', () => {
+  const db = initDb(':memory:');
+  const result = pickGift(db, 'Mystery Guest', { sessionId: 'sess-jo-1', country: 'JO' });
+  assert.ok(result.wheelSegments.some((s) => s.id === 'cash'));
+});
+
 test('Razan\'s second spin errors clearly if no 25-50 gift is configured', () => {
   const db = initDb(':memory:');
   createGift(db, { name: 'Cheap', imageUrl: null, productUrl: 'https://example.com/a', priceRange: '10-25', active: true });
