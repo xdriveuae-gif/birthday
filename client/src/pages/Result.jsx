@@ -41,6 +41,7 @@ export default function Result() {
     setRetriesRemaining,
     sessionId,
     resetSpinFlow,
+    setPriceRange,
   } = useAppContext();
   const navigate = useNavigate();
   const joke = useMemo(() => JOKES[Math.floor(Math.random() * JOKES.length)], []);
@@ -103,7 +104,8 @@ export default function Result() {
       if (nextCompleted < spinsAllowed) {
         setRetriesRemaining(2);
         setResult(null);
-        navigate('/wheel');
+        setPriceRange(null);
+        navigate('/price-range');
       } else {
         setSubmitted(true);
       }

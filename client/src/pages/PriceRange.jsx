@@ -22,7 +22,7 @@ export default function PriceRange() {
 
   function handleSelect(value) {
     setPriceRange(value);
-    navigate('/love-question');
+    navigate('/wheel');
   }
 
   return (

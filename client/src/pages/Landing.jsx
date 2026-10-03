@@ -50,7 +50,7 @@ export default function Landing() {
     setName(trimmed);
     resetSpinFlow();
     playClick();
-    navigate('/price-range');
+    navigate('/love-question');
   }
 
   return (

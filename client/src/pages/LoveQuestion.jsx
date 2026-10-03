@@ -20,9 +20,9 @@ export default function LoveQuestion() {
     setRetriesRemaining(2);
     if (saysYes) {
       setConfirmed(true);
-      window.setTimeout(() => navigate('/wheel'), 1400);
+      window.setTimeout(() => navigate('/price-range'), 1400);
     } else {
-      navigate('/wheel');
+      navigate('/price-range');
     }
   }
 
