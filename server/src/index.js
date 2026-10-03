@@ -11,8 +11,8 @@ dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 const isProduction = process.env.NODE_ENV === 'production';
 const port = Number(process.env.PORT) || 3000;
 const repoRoot = path.resolve(__dirname, '../..');
-const dbPath = path.resolve(repoRoot, process.env.SQLITE_PATH || 'server/data/app.db');
-const uploadsDir = path.resolve(repoRoot, process.env.UPLOADS_DIR || 'server/data/uploads');
+const dbPath = path.resolve(repoRoot, process.env.DB_PATH || 'server/data/app.db');
+const uploadsDir = path.resolve(repoRoot, process.env.UPLOAD_DIR || 'server/data/uploads');
 const clientDistDir = path.join(repoRoot, 'client/dist');
 const sessionSecret = process.env.SESSION_SECRET;
 

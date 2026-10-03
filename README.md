@@ -41,8 +41,8 @@ Then edit `.env`:
 | `NODE_ENV` | `development` or `production` |
 | `SESSION_SECRET` | Long random string used to sign admin session cookies — generate one with `openssl rand -hex 32` (or any password manager) |
 | `ADMIN_USERNAME` / `ADMIN_PASSWORD` | Used **once**, on first server boot, to create the one admin account |
-| `SQLITE_PATH` | Where the SQLite database file lives (default `server/data/app.db`) |
-| `UPLOADS_DIR` | Where uploaded gift images are stored (default `server/data/uploads`) |
+| `DB_PATH` | Where the SQLite database file lives (default `server/data/app.db`) |
+| `UPLOAD_DIR` | Where uploaded gift images are stored (default `server/data/uploads`) |
 
 ## Run in development
 
@@ -100,34 +100,49 @@ needed.
 > to simulate the reverse proxy, or just test against a real deployed HTTPS
 > instance.
 
-## Deploy (Render or Railway)
+## Deploy (Hostinger)
 
 1. Push this repository to GitHub.
-2. Create a new Web Service pointed at the repo.
-3. Build command: `npm run install:all && npm run build`
-4. Start command: `npm start`
-5. Set environment variables from the table above in the host's dashboard
+2. In Hostinger, create the app under **Deploy Web App** and connect it to
+   the GitHub repo (or upload a zip of the repo, excluding `node_modules`,
+   `.git`, `server/data`, and `.env`).
+3. Build command: `npm run build` (the `postinstall` script in
+   `package.json` installs `server/` and `client/` dependencies
+   automatically, including with `NODE_ENV=production` set — see note below).
+4. Entry file: `server/src/index.js`
+5. Set environment variables from the table above in Hostinger's dashboard
    (`SESSION_SECRET`, `ADMIN_USERNAME`, `ADMIN_PASSWORD`, `NODE_ENV=production`).
-6. **Attach a persistent disk** (a Render Disk or Railway Volume — e.g. 1GB
-   mounted at `/data`). This step is not optional: without it, the default
-   web service disk is wiped on every deploy/restart, silently deleting the
-   database and every uploaded gift image. Point `SQLITE_PATH=/data/app.db`
-   and `UPLOADS_DIR=/data/uploads` at the mounted disk.
+6. **Point `DB_PATH` and `UPLOAD_DIR` at Hostinger's persistent storage
+   directory**, not the app's own deployed code directory. This step is not
+   optional: Hostinger replaces the app's code directory on every
+   redeploy, which silently deletes the database and every uploaded gift
+   image if they're stored inside it. Use a path like
+   `/home/<your-account-id>/persistent_data/database/database.db` for
+   `DB_PATH` and `/home/<your-account-id>/persistent_data/uploads` for
+   `UPLOAD_DIR` (find your account's actual persistent storage path in
+   Hostinger's dashboard).
 7. **Secure session cookies behind a reverse proxy.** The app calls
    `app.set('trust proxy', 1)` internally to ensure admin login's secure
-   session cookie works correctly behind Render/Railway's TLS-terminating
-   reverse proxy — no action needed on your part. However, if you ever put
-   another proxy or CDN in front of this app, you may need to adjust the
-   trust level accordingly.
-8. **Pin the Node version to 24.x explicitly** in the host's runtime/Node
+   session cookie works correctly behind Hostinger's TLS-terminating
+   reverse proxy — no action needed on your part.
+8. **Pin the Node version to 22.x or newer** in Hostinger's runtime/Node
    version setting (don't rely solely on `package.json`'s `engines` field —
    hosts don't always default to a version recent enough for `node:sqlite`).
 9. Deploy, then share the resulting URL.
 
+> **Why `npm run build` alone is enough:** some deploy UIs (Hostinger
+> included) only expose a single build-command field with no separate
+> install step you can customize. `package.json`'s `postinstall` script
+> hooks into npm's automatic install step to also install `server/` and
+> `client/` dependencies — and explicitly passes `--include=dev` for the
+> client, since `NODE_ENV=production` would otherwise make npm skip
+> `vite` and the rest of the client's dev-only build tooling, breaking
+> the build in production mode specifically.
+
 ## Database
 
 SQLite via Node's built-in `node:sqlite` module (`DatabaseSync`) — no native
-compilation, no extra npm dependency. The file lives at `SQLITE_PATH`. Tables
+compilation, no extra npm dependency. The file lives at `DB_PATH`. Tables
 (`admin_users`, `gifts`, `participants`, `settings`, `sessions`) are created automatically
 on first boot — see `server/src/db/index.js`. There is no separate migration
 tool; schema changes at this project's scale are made directly in that file
