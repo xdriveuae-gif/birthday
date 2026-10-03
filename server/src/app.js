@@ -15,6 +15,7 @@ import { createAdminGiftsRouter } from './routes/adminGifts.js';
 import { createAdminParticipantsRouter } from './routes/adminParticipants.js';
 import { createAdminSettingsRouter } from './routes/adminSettings.js';
 import { createAdminStatsRouter } from './routes/adminStats.js';
+import { resolveCountry } from './lib/geoCountry.js';
 
 export function createApp({ db, uploadsDir, sessionSecret, clientDistDir, isProduction } = {}) {
   const app = express();
@@ -35,6 +36,14 @@ export function createApp({ db, uploadsDir, sessionSecret, clientDistDir, isProd
   app.use(express.urlencoded({ extended: false }));
 
   app.get('/api/health', (req, res) => res.json({ ok: true }));
+  // TEMPORARY — verifying that this host's outbound network can actually
+  // reach the IP-geolocation API before trusting the UAE-detection feature
+  // in production; remove once confirmed.
+  app.get('/api/_debug-geo', async (req, res) => {
+    const ip = typeof req.query.ip === 'string' ? req.query.ip : req.ip;
+    const country = await resolveCountry(ip);
+    res.json({ queriedIp: ip, requestIp: req.ip, country });
+  });
 
   app.use(
     session({
