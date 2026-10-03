@@ -47,8 +47,8 @@ export function createAdminAuthRouter(db, { loginLimiter } = {}) {
     if (newUsername !== null && !newUsername) {
       return res.status(400).json({ error: { code: 'INVALID_INPUT', message: 'Username cannot be empty.' } });
     }
-    if (newPassword !== null && newPassword.length < 6) {
-      return res.status(400).json({ error: { code: 'INVALID_INPUT', message: 'New password must be at least 6 characters.' } });
+    if (newPassword !== null && !newPassword) {
+      return res.status(400).json({ error: { code: 'INVALID_INPUT', message: 'Password cannot be empty.' } });
     }
 
     const finalUsername = newUsername || admin.username;

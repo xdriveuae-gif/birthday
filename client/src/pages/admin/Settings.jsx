@@ -108,7 +108,7 @@ export default function AdminSettings() {
         />
         <input
           type="password"
-          placeholder="New password (optional, min 6 characters)"
+          placeholder="New password (optional)"
           value={credentialsForm.newPassword}
           onChange={(e) => setCredentialsForm((f) => ({ ...f, newPassword: e.target.value }))}
           className="w-full rounded-xl border-2 border-white/30 bg-white/10 px-4 py-2 outline-none focus:border-white"

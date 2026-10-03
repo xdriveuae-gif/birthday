@@ -74,16 +74,30 @@ test('PATCH /credentials rejects the wrong current password', async () => {
   assert.equal(res.body.error.code, 'INVALID_CREDENTIALS');
 });
 
-test('PATCH /credentials rejects a too-short new password', async () => {
+test('PATCH /credentials rejects an empty new password', async () => {
   const { app } = buildTestApp();
   const agent = request.agent(app);
   await agent.post('/api/admin/login').send({ username: 'admin', password: 'secret123' });
 
   const res = await agent
     .patch('/api/admin/credentials')
-    .send({ currentPassword: 'secret123', newUsername: 'admin', newPassword: 'ab' });
+    .send({ currentPassword: 'secret123', newUsername: 'admin', newPassword: '' });
   assert.equal(res.status, 400);
   assert.equal(res.body.error.code, 'INVALID_INPUT');
+});
+
+test('PATCH /credentials allows a short new password like "admin"', async () => {
+  const { app } = buildTestApp();
+  const agent = request.agent(app);
+  await agent.post('/api/admin/login').send({ username: 'admin', password: 'secret123' });
+
+  const res = await agent
+    .patch('/api/admin/credentials')
+    .send({ currentPassword: 'secret123', newUsername: 'admin', newPassword: 'admin' });
+  assert.equal(res.status, 200);
+
+  const loginRes = await request(app).post('/api/admin/login').send({ username: 'admin', password: 'admin' });
+  assert.equal(loginRes.status, 200);
 });
 
 test('PATCH /credentials changes username and password; old password stops working, new one logs in', async () => {
