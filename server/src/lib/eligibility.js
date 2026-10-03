@@ -4,7 +4,7 @@ import { listWonGiftIds, listOutcomesBySession } from '../db/participants.js';
 import { isRazan } from './specialGuests.js';
 import { CASH_SEGMENT } from './cashSegment.js';
 
-const FORCED_GIFT_RANGE_FOR_RAZAN = '25-50';
+const FORCED_GIFT_RANGES_FOR_RAZAN = ['25-50', '50-100'];
 
 // Splits "what the wheel shows" from "what the spin can actually land on."
 // The wheel always displays every active, not-yet-won gift (plus Cash,
@@ -21,13 +21,18 @@ const FORCED_GIFT_RANGE_FOR_RAZAN = '25-50';
 // untagged gift no longer counts as a match) — needed for a *forced* bracket
 // like Razan's, where "any gift" slipping through via the untagged fallback
 // would defeat the whole point of forcing a specific range.
+//
+// priceRange accepts either a single bracket ('25-50') or a list of brackets
+// (['25-50', '50-100']) to match against — Razan's forced second spin spans
+// two brackets at once.
 export function getWheelSegments(db, { priceRange = null, includeCash = true, requireExactRange = false } = {}) {
   const settings = getAllSettings(db);
   const activeGifts = listActiveGifts(db);
   const wonGiftIds = settings.allowRepeatGifts ? new Set() : listWonGiftIds(db);
   const available = activeGifts.filter((g) => !wonGiftIds.has(g.id));
-  const eligibleGifts = priceRange
-    ? available.filter((g) => g.priceRange === priceRange || (!g.priceRange && !requireExactRange))
+  const targetRanges = priceRange ? (Array.isArray(priceRange) ? priceRange : [priceRange]) : null;
+  const eligibleGifts = targetRanges
+    ? available.filter((g) => targetRanges.includes(g.priceRange) || (!g.priceRange && !requireExactRange))
     : available;
   return {
     display: includeCash ? [...available, CASH_SEGMENT] : available,
@@ -40,7 +45,7 @@ export function getWheelSegments(db, { priceRange = null, includeCash = true, re
 // never disagree (a past bug: the idle wheel once showed gifts the spin
 // endpoint would never actually give out). Encodes both per-guest rules:
 // Razan (and her aliases) always gets Cash on spin 1 of a 2-gift session and
-// a 25-50 gift on spin 2 overriding her chosen range; everyone else just
+// a 25-50-or-50-100 gift on spin 2 overriding her chosen range; everyone else just
 // can't land Cash twice in the same session. The same forced outcome also
 // applies to any guest spinning from a UAE IP, as a stand-in for Razan when
 // her name isn't typed exactly — reliable here since she's the only UAE
@@ -54,7 +59,7 @@ export function resolveWheelSegments(db, { name, sessionId = null, priceRange = 
       return { display, eligible, forcedWinner: CASH_SEGMENT };
     }
     const { display, eligible } = getWheelSegments(db, {
-      priceRange: FORCED_GIFT_RANGE_FOR_RAZAN,
+      priceRange: FORCED_GIFT_RANGES_FOR_RAZAN,
       includeCash: false,
       requireExactRange: true,
     });

@@ -155,6 +155,22 @@ test('Razan always gets a 25-50 gift on her second spin, overriding her chosen p
   assert.ok(result.wheelSegments.some((s) => s.name === 'Cheap'), 'the wheel still displays every gift, even ones she cannot win');
 });
 
+test('Razan\'s forced second spin can also land on a 50-100 gift, not just 25-50', () => {
+  const db = initDb(':memory:');
+  createGift(db, { name: 'Cheap', imageUrl: null, productUrl: 'https://example.com/a', priceRange: '10-25', active: true });
+  const expensiveGift = createGift(db, {
+    name: 'Expensive',
+    imageUrl: null,
+    productUrl: 'https://example.com/b',
+    priceRange: '50-100',
+    active: true,
+  });
+  insertParticipant(db, { name: 'Razan', outcome: 'cash', sessionId: 'sess-razan-5050' });
+
+  const result = pickGift(db, 'Razan', { sessionId: 'sess-razan-5050' });
+  assert.equal(result.gift.id, expensiveGift.id);
+});
+
 test('an untagged gift (no price_range set) never leaks into Razan\'s forced 25-50 second spin', () => {
   const db = initDb(':memory:');
   // No priceRange at all — this is the common real-world case before an
