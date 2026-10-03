@@ -12,8 +12,8 @@ export function createPublicGiftsRouter(db) {
     const name = typeof req.query.name === 'string' ? req.query.name : '';
     const country = await resolveCountry(req.ip);
 
-    const { segments } = resolveWheelSegments(db, { name, sessionId, priceRange, country });
-    res.json({ gifts: segments.map((g) => ({ id: g.id, name: g.name, imageUrl: g.imageUrl })) });
+    const { display } = resolveWheelSegments(db, { name, sessionId, priceRange, country });
+    res.json({ gifts: display.map((g) => ({ id: g.id, name: g.name, imageUrl: g.imageUrl })) });
   });
   return router;
 }

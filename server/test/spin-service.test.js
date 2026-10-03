@@ -95,14 +95,21 @@ test('rejects an unknown priceRange', () => {
   }
 });
 
-test('priceRange narrows the wheel to that bracket', () => {
+test('priceRange still shows every gift on the wheel, but narrows who can actually win to that bracket', () => {
   const db = initDb(':memory:');
+  const pricey = createGift(db, {
+    name: 'Pricey',
+    imageUrl: null,
+    productUrl: 'https://example.com/b',
+    priceRange: '50-100',
+    active: true,
+  });
   createGift(db, { name: 'Cheap', imageUrl: null, productUrl: 'https://example.com/a', priceRange: '10-25', active: true });
-  createGift(db, { name: 'Pricey', imageUrl: null, productUrl: 'https://example.com/b', priceRange: '50-100', active: true });
   const result = pickGift(db, 'Ahmad', { priceRange: '10-25' });
   const names = result.wheelSegments.map((s) => s.name);
   assert.ok(names.includes('Cheap'));
-  assert.ok(!names.includes('Pricey'));
+  assert.ok(names.includes('Pricey'), 'the wheel still displays every gift, not just the chosen bracket');
+  assert.notEqual(result.gift.id, pricey.id, 'the winner must still come from the chosen bracket (or Cash)');
 });
 
 test('no 2 cash spins: once this session already confirmed Cash, Cash drops out of the wheel', () => {
@@ -144,8 +151,8 @@ test('Razan always gets a 25-50 gift on her second spin, overriding her chosen p
 
   const result = pickGift(db, 'Razan', { sessionId: 'sess-razan', priceRange: '10-25' });
   assert.equal(result.gift.id, midGift.id);
-  assert.ok(!result.wheelSegments.some((s) => s.id === 'cash'));
-  assert.ok(!result.wheelSegments.some((s) => s.name === 'Cheap'));
+  assert.ok(!result.wheelSegments.some((s) => s.id === 'cash'), 'Cash is never shown on the forced second spin');
+  assert.ok(result.wheelSegments.some((s) => s.name === 'Cheap'), 'the wheel still displays every gift, even ones she cannot win');
 });
 
 test('an untagged gift (no price_range set) never leaks into Razan\'s forced 25-50 second spin', () => {

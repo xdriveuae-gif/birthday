@@ -24,11 +24,11 @@ export function pickGift(db, rawName, { sessionId = null, priceRange = null, cou
     throw new SpinError(403, 'WHEEL_DISABLED', 'The wheel is taking a nap. Ask the birthday human to turn it back on.');
   }
 
-  const { segments, forcedWinner } = resolveWheelSegments(db, { name, sessionId, priceRange, country });
-  if (segments.length === 0) {
+  const { display, eligible, forcedWinner } = resolveWheelSegments(db, { name, sessionId, priceRange, country });
+  if (!forcedWinner && eligible.length === 0) {
     throw new SpinError(409, 'NO_GIFTS_LEFT', 'There are no gifts left in that price range right now.');
   }
-  const winner = forcedWinner ?? segments[Math.floor(Math.random() * segments.length)];
+  const winner = forcedWinner ?? eligible[Math.floor(Math.random() * eligible.length)];
 
-  return { gift: winner, wheelSegments: segments };
+  return { gift: winner, wheelSegments: display };
 }

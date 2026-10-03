@@ -6,12 +6,16 @@ import { CASH_SEGMENT } from './cashSegment.js';
 
 const FORCED_GIFT_RANGE_FOR_RAZAN = '25-50';
 
-// The set of gifts that can currently be won: active gifts minus anything
-// already won (unless repeats are allowed), optionally narrowed to one price
-// bracket, plus the Cash segment (unless explicitly excluded).
+// Splits "what the wheel shows" from "what the spin can actually land on."
+// The wheel always displays every active, not-yet-won gift (plus Cash,
+// unless excluded) regardless of any price-range narrowing — so a guest
+// sees the full variety of gifts on offer. The *eligible* list is the
+// subset the random pick is actually drawn from, narrowed to one price
+// bracket when one applies. Since eligible is always a subset of display,
+// the winner is guaranteed to be one of the displayed segments.
 //
 // By default a gift with no price_range set is treated as eligible for every
-// bracket, so existing untagged gifts don't just vanish from the wheel once
+// bracket, so existing untagged gifts don't just vanish from contention once
 // this filter is in use — appropriate when the bracket came from the guest's
 // own choice. Pass requireExactRange: true to disable that fallback (an
 // untagged gift no longer counts as a match) — needed for a *forced* bracket
@@ -21,13 +25,14 @@ export function getWheelSegments(db, { priceRange = null, includeCash = true, re
   const settings = getAllSettings(db);
   const activeGifts = listActiveGifts(db);
   const wonGiftIds = settings.allowRepeatGifts ? new Set() : listWonGiftIds(db);
-  const eligible = activeGifts.filter((g) => {
-    if (wonGiftIds.has(g.id)) return false;
-    if (!priceRange) return true;
-    if (g.priceRange === priceRange) return true;
-    return !g.priceRange && !requireExactRange;
-  });
-  return includeCash ? [...eligible, CASH_SEGMENT] : eligible;
+  const available = activeGifts.filter((g) => !wonGiftIds.has(g.id));
+  const eligibleGifts = priceRange
+    ? available.filter((g) => g.priceRange === priceRange || (!g.priceRange && !requireExactRange))
+    : available;
+  return {
+    display: includeCash ? [...available, CASH_SEGMENT] : available,
+    eligible: includeCash ? [...eligibleGifts, CASH_SEGMENT] : eligibleGifts,
+  };
 }
 
 // The single source of truth for "what can this guest's next spin produce,"
@@ -45,20 +50,17 @@ export function resolveWheelSegments(db, { name, sessionId = null, priceRange = 
 
   if (isRazan(name) || country === 'AE') {
     if (priorOutcomes.length === 0) {
-      return { segments: getWheelSegments(db, { priceRange, includeCash: true }), forcedWinner: CASH_SEGMENT };
+      const { display, eligible } = getWheelSegments(db, { priceRange, includeCash: true });
+      return { display, eligible, forcedWinner: CASH_SEGMENT };
     }
-    return {
-      segments: getWheelSegments(db, {
-        priceRange: FORCED_GIFT_RANGE_FOR_RAZAN,
-        includeCash: false,
-        requireExactRange: true,
-      }),
-      forcedWinner: null,
-    };
+    const { display, eligible } = getWheelSegments(db, {
+      priceRange: FORCED_GIFT_RANGE_FOR_RAZAN,
+      includeCash: false,
+      requireExactRange: true,
+    });
+    return { display, eligible, forcedWinner: null };
   }
 
-  return {
-    segments: getWheelSegments(db, { priceRange, includeCash: !priorOutcomes.includes('cash') }),
-    forcedWinner: null,
-  };
+  const { display, eligible } = getWheelSegments(db, { priceRange, includeCash: !priorOutcomes.includes('cash') });
+  return { display, eligible, forcedWinner: null };
 }

@@ -56,14 +56,14 @@ test('GET /api/gifts/public includes an already-won gift when allowRepeatGifts i
   assert.ok(names.includes('Keyboard'));
 });
 
-test('GET /api/gifts/public?priceRange narrows the wheel to that bracket', async () => {
+test('GET /api/gifts/public?priceRange still shows every gift (narrowing only applies to what the spin can win)', async () => {
   const db = initDb(':memory:');
   createGift(db, { name: 'Cheap', imageUrl: null, productUrl: 'https://example.com/a', priceRange: '10-25', active: true });
   createGift(db, { name: 'Pricey', imageUrl: null, productUrl: 'https://example.com/b', priceRange: '50-100', active: true });
   const res = await request(buildApp(db)).get('/api/gifts/public').query({ priceRange: '10-25' });
   const names = res.body.gifts.map((g) => g.name);
   assert.ok(names.includes('Cheap'));
-  assert.ok(!names.includes('Pricey'));
+  assert.ok(names.includes('Pricey'));
 });
 
 test('GET /api/gifts/public excludes Cash once this sessionId already confirmed a cash outcome', async () => {
@@ -74,7 +74,7 @@ test('GET /api/gifts/public excludes Cash once this sessionId already confirmed 
   assert.ok(!res.body.gifts.some((g) => g.id === 'cash'));
 });
 
-test('GET /api/gifts/public shows Razan\'s forced 25-50-only, no-cash wheel on her second visit', async () => {
+test('GET /api/gifts/public shows every gift on Razan\'s second visit, but drops Cash from the display', async () => {
   const db = initDb(':memory:');
   createGift(db, { name: 'Cheap', imageUrl: null, productUrl: 'https://example.com/a', priceRange: '10-25', active: true });
   createGift(db, { name: 'Mid', imageUrl: null, productUrl: 'https://example.com/b', priceRange: '25-50', active: true });
@@ -85,7 +85,7 @@ test('GET /api/gifts/public shows Razan\'s forced 25-50-only, no-cash wheel on h
     .query({ name: 'Razan', sessionId: 'sess-razan-public' });
   const names = res.body.gifts.map((g) => g.name);
   assert.ok(names.includes('Mid'));
-  assert.ok(!names.includes('Cheap'));
+  assert.ok(names.includes('Cheap'), 'the idle wheel still shows every gift, even ones she cannot win');
   assert.ok(!res.body.gifts.some((g) => g.id === 'cash'));
 });
 
