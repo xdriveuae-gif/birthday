@@ -18,6 +18,29 @@ test('initDb avoids WAL mode (unreliable over network filesystems) for file-back
   fs.rmSync(root, { recursive: true, force: true });
 });
 
+test('initDb does not crash when an existing WAL database cannot be switched out of WAL (another connection still open)', () => {
+  // Leaving WAL mode requires zero other open connections to the file — not
+  // just no active transaction. With this host always running multiple
+  // long-lived server processes against the same file, that condition can
+  // persist indefinitely. initDb must tolerate that rather than crash.
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bday-wal-stuck-'));
+  const dbPath = path.join(root, 'app.db');
+
+  const walDb = new DatabaseSync(dbPath);
+  walDb.exec('PRAGMA journal_mode = WAL');
+  walDb.exec('CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)');
+
+  // walDb stays open here, standing in for another always-on process that
+  // never releases the file — the real condition that blocks leaving WAL.
+  const db = initDb(dbPath);
+  const settings = getAllSettings(db);
+  assert.deepEqual(settings, { allowRepeatGifts: false, wheelEnabled: true, cliqAlias: 'OH98' });
+
+  db.close();
+  walDb.close();
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
 test('initDb recovers when a real second process is mid-write-lock on the same file', async () => {
   // A same-process, same-thread simulation of "two connections racing" is
   // misleading here: Atomics.wait (our retry backoff) blocks the whole

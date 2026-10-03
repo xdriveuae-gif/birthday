@@ -34,10 +34,24 @@ export function initDb(dbPath) {
   // WAL mode relies on shared-memory (mmap) and proper advisory file locking,
   // which SQLite's own docs warn is unreliable over network filesystems —
   // exactly what a host's "persistent storage" directory often is. DELETE
-  // mode (the long-standing default rollback journal) is slower under heavy
-  // write concurrency, but this app's write volume is tiny (one row per
-  // guest submission) and correctness/compatibility matters far more here.
-  withLockRetry(() => db.exec('PRAGMA journal_mode = DELETE'));
+  // mode (the long-standing default rollback journal) is the safer choice
+  // for new databases. But leaving WAL once a file is already in it requires
+  // *zero* other connections to that file — not just no active transaction —
+  // and with this host always running multiple long-lived server processes
+  // against the same file, that condition never naturally occurs. Retrying
+  // it (even with backoff/jitter) just deadlocks forever and crashes the
+  // app. So: only attempt it when nothing's currently open against the
+  // file, and if that one attempt fails, keep running in WAL rather than
+  // crash — this app's write volume is tiny enough that WAL's network-FS
+  // risk is a lesser evil than an unavailable server.
+  try {
+    const { journal_mode: currentMode } = db.prepare('PRAGMA journal_mode').get();
+    if (String(currentMode).toLowerCase() === 'wal') {
+      db.exec('PRAGMA journal_mode = DELETE');
+    }
+  } catch (err) {
+    console.warn('Could not leave WAL journal mode (other connections likely still open); continuing in WAL.', err.message);
+  }
   db.exec('PRAGMA foreign_keys = OFF');
   withLockRetry(() =>
     db.exec(`
