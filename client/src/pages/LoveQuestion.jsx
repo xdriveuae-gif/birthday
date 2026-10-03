@@ -41,8 +41,16 @@ export default function LoveQuestion() {
               animate={{ opacity: 1, y: 0 }}
               className="font-display text-3xl font-extrabold drop-shadow-lg sm:text-4xl"
             >
-              If you love me... will you get me 2 gifts? 🥺🎁🎁
+              How many gifts are you getting me? 🥺
             </motion.h1>
+            <motion.p
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.15 }}
+              className="max-w-sm text-base font-semibold text-white/80"
+            >
+              Pick one — if you choose 2, you'll spin the wheel twice.
+            </motion.p>
             <div className="flex w-full max-w-sm flex-col gap-4 sm:flex-row">
               <motion.button
                 type="button"
@@ -51,7 +59,7 @@ export default function LoveQuestion() {
                 whileTap={{ scale: 0.92 }}
                 className="flex-1 rounded-full bg-party-yellow px-8 py-5 text-xl font-extrabold text-purple-900 shadow-lg shadow-black/20"
               >
-                Yes, obviously 🥹
+                🎁🎁 2 gifts
               </motion.button>
               <motion.button
                 type="button"
@@ -60,7 +68,7 @@ export default function LoveQuestion() {
                 whileTap={{ scale: 0.92 }}
                 className="flex-1 rounded-full bg-white/20 px-8 py-5 text-xl font-extrabold text-white shadow-lg shadow-black/20"
               >
-                Just the one 😬
+                🎁 Just 1 gift
               </motion.button>
             </div>
           </motion.div>
@@ -71,7 +79,7 @@ export default function LoveQuestion() {
             animate={{ opacity: 1, scale: 1 }}
             className="font-display text-2xl font-extrabold drop-shadow-lg"
           >
-            🎉 2 spin chances unlocked! Make 'em cheap ones 😏
+            🎉 2 gifts it is! You'll spin the wheel twice.
           </motion.p>
         )}
       </AnimatePresence>
