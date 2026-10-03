@@ -148,6 +148,21 @@ test('Razan always gets a 25-50 gift on her second spin, overriding her chosen p
   assert.ok(!result.wheelSegments.some((s) => s.name === 'Cheap'));
 });
 
+test('an untagged gift (no price_range set) never leaks into Razan\'s forced 25-50 second spin', () => {
+  const db = initDb(':memory:');
+  // No priceRange at all — this is the common real-world case before an
+  // admin has gone through and tagged every gift.
+  createGift(db, { name: 'Untagged', imageUrl: null, productUrl: 'https://example.com/a', active: true });
+  insertParticipant(db, { name: 'Raz', outcome: 'cash', sessionId: 'sess-razan-untagged' });
+  try {
+    pickGift(db, 'Raz', { sessionId: 'sess-razan-untagged' });
+    assert.fail('expected SpinError — an untagged gift must not count as a 25-50 match');
+  } catch (err) {
+    assert.equal(err.status, 409);
+    assert.equal(err.code, 'NO_GIFTS_LEFT');
+  }
+});
+
 test('Razan\'s second spin errors clearly if no 25-50 gift is configured', () => {
   const db = initDb(':memory:');
   createGift(db, { name: 'Cheap', imageUrl: null, productUrl: 'https://example.com/a', priceRange: '10-25', active: true });

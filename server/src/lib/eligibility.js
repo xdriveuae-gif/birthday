@@ -8,16 +8,25 @@ const FORCED_GIFT_RANGE_FOR_RAZAN = '25-50';
 
 // The set of gifts that can currently be won: active gifts minus anything
 // already won (unless repeats are allowed), optionally narrowed to one price
-// bracket, plus the Cash segment (unless explicitly excluded). A gift with no
-// price_range set is treated as eligible for every bracket, so existing
-// untagged gifts don't just vanish from the wheel once this filter is in use.
-export function getWheelSegments(db, { priceRange = null, includeCash = true } = {}) {
+// bracket, plus the Cash segment (unless explicitly excluded).
+//
+// By default a gift with no price_range set is treated as eligible for every
+// bracket, so existing untagged gifts don't just vanish from the wheel once
+// this filter is in use — appropriate when the bracket came from the guest's
+// own choice. Pass requireExactRange: true to disable that fallback (an
+// untagged gift no longer counts as a match) — needed for a *forced* bracket
+// like Razan's, where "any gift" slipping through via the untagged fallback
+// would defeat the whole point of forcing a specific range.
+export function getWheelSegments(db, { priceRange = null, includeCash = true, requireExactRange = false } = {}) {
   const settings = getAllSettings(db);
   const activeGifts = listActiveGifts(db);
   const wonGiftIds = settings.allowRepeatGifts ? new Set() : listWonGiftIds(db);
-  const eligible = activeGifts.filter(
-    (g) => !wonGiftIds.has(g.id) && (!priceRange || !g.priceRange || g.priceRange === priceRange)
-  );
+  const eligible = activeGifts.filter((g) => {
+    if (wonGiftIds.has(g.id)) return false;
+    if (!priceRange) return true;
+    if (g.priceRange === priceRange) return true;
+    return !g.priceRange && !requireExactRange;
+  });
   return includeCash ? [...eligible, CASH_SEGMENT] : eligible;
 }
 
@@ -36,7 +45,11 @@ export function resolveWheelSegments(db, { name, sessionId = null, priceRange = 
       return { segments: getWheelSegments(db, { priceRange, includeCash: true }), forcedWinner: CASH_SEGMENT };
     }
     return {
-      segments: getWheelSegments(db, { priceRange: FORCED_GIFT_RANGE_FOR_RAZAN, includeCash: false }),
+      segments: getWheelSegments(db, {
+        priceRange: FORCED_GIFT_RANGE_FOR_RAZAN,
+        includeCash: false,
+        requireExactRange: true,
+      }),
       forcedWinner: null,
     };
   }

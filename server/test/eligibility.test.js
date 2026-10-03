@@ -34,6 +34,16 @@ test('a gift with no price_range set stays eligible for every bracket', () => {
   assert.ok(segments.some((s) => s.name === 'Untagged'));
 });
 
+test('requireExactRange: true excludes a gift with no price_range set', () => {
+  const db = initDb(':memory:');
+  createGift(db, { name: 'Untagged', productUrl: 'https://example.com/a', active: true });
+  createGift(db, { name: 'Tagged', productUrl: 'https://example.com/b', priceRange: '25-50', active: true });
+  const segments = getWheelSegments(db, { priceRange: '25-50', requireExactRange: true });
+  const names = segments.map((s) => s.name);
+  assert.ok(names.includes('Tagged'));
+  assert.ok(!names.includes('Untagged'));
+});
+
 test('includeCash: false excludes the Cash segment', () => {
   const db = initDb(':memory:');
   createGift(db, { name: 'Gift', productUrl: 'https://example.com/a', active: true });
