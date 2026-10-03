@@ -8,14 +8,17 @@ import path from 'node:path';
 // empirically — a waiting connection can block for the full timeout and
 // still throw), so retry each startup write ourselves with a real backoff
 // instead of relying on it.
-function withLockRetry(fn, { retries = 20, delayMs = 150 } = {}) {
+function withLockRetry(fn, { retries = 30, delayMs = 150 } = {}) {
   for (let attempt = 0; ; attempt++) {
     try {
       return fn();
     } catch (err) {
       const isBusy = err?.errcode === 5 || /locked|busy/i.test(err?.message ?? '');
       if (!isBusy || attempt >= retries) throw err;
-      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, delayMs);
+      // Jitter: multiple processes starting within milliseconds of each
+      // other would otherwise retry in lockstep and keep re-colliding.
+      const jitteredDelay = delayMs + Math.floor(Math.random() * delayMs);
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, jitteredDelay);
     }
   }
 }
@@ -34,7 +37,7 @@ export function initDb(dbPath) {
   // mode (the long-standing default rollback journal) is slower under heavy
   // write concurrency, but this app's write volume is tiny (one row per
   // guest submission) and correctness/compatibility matters far more here.
-  db.exec('PRAGMA journal_mode = DELETE');
+  withLockRetry(() => db.exec('PRAGMA journal_mode = DELETE'));
   db.exec('PRAGMA foreign_keys = OFF');
   withLockRetry(() =>
     db.exec(`
@@ -138,6 +141,8 @@ export function runInTransaction(db, fn) {
 export function seedAdminIfEmpty(db, username, passwordHash) {
   const { count } = db.prepare('SELECT COUNT(*) AS count FROM admin_users').get();
   if (count > 0) return false;
-  db.prepare('INSERT INTO admin_users (username, password_hash) VALUES (?, ?)').run(username, passwordHash);
+  // Same startup race as initDb's own writes: multiple processes may reach
+  // this INSERT within the same window.
+  withLockRetry(() => db.prepare('INSERT INTO admin_users (username, password_hash) VALUES (?, ?)').run(username, passwordHash));
   return true;
 }
