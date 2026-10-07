@@ -15,6 +15,7 @@ import { createAdminGiftsRouter } from './routes/adminGifts.js';
 import { createAdminParticipantsRouter } from './routes/adminParticipants.js';
 import { createAdminSettingsRouter } from './routes/adminSettings.js';
 import { createAdminStatsRouter } from './routes/adminStats.js';
+import fs from 'node:fs';
 
 export function createApp({ db, uploadsDir, sessionSecret, clientDistDir, isProduction } = {}) {
   const app = express();
@@ -35,14 +36,22 @@ export function createApp({ db, uploadsDir, sessionSecret, clientDistDir, isProd
   app.use(express.urlencoded({ extended: false }));
 
   app.get('/api/health', (req, res) => res.json({ ok: true }));
-  // TEMPORARY — diagnosing where the live gifts/participants data vanished
-  // from. Reports storage paths only, nothing sensitive. Remove after use.
-  app.get('/api/_debug-storage', (req, res) => {
-    res.json({
-      dbPath: process.env.DB_PATH ?? null,
-      uploadDir: process.env.UPLOAD_DIR ?? null,
-      cwd: process.cwd(),
-    });
+  // TEMPORARY — seeds today's first DB backup immediately rather than
+  // waiting for tonight's 3am cron, after the live data was found wiped
+  // with no backup to restore from. Remove after use.
+  app.post('/api/_debug-backup-now', (req, res) => {
+    try {
+      const dbPath = process.env.DB_PATH;
+      if (!dbPath) return res.status(500).json({ error: { code: 'NO_DB_PATH', message: 'DB_PATH not set.' } });
+      const backupDir = path.join(path.dirname(path.dirname(dbPath)), 'backups');
+      fs.mkdirSync(backupDir, { recursive: true });
+      const stamp = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 12);
+      const dest = path.join(backupDir, `db-${stamp}.db`);
+      fs.copyFileSync(dbPath, dest);
+      res.json({ ok: true, dest });
+    } catch (err) {
+      res.status(500).json({ error: { code: 'BACKUP_FAILED', message: err.message } });
+    }
   });
 
   app.use(
