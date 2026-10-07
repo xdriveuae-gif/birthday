@@ -15,7 +15,6 @@ import { createAdminGiftsRouter } from './routes/adminGifts.js';
 import { createAdminParticipantsRouter } from './routes/adminParticipants.js';
 import { createAdminSettingsRouter } from './routes/adminSettings.js';
 import { createAdminStatsRouter } from './routes/adminStats.js';
-import { hashPassword, verifyPassword } from './lib/password.js';
 
 export function createApp({ db, uploadsDir, sessionSecret, clientDistDir, isProduction } = {}) {
   const app = express();
@@ -36,26 +35,6 @@ export function createApp({ db, uploadsDir, sessionSecret, clientDistDir, isProd
   app.use(express.urlencoded({ extended: false }));
 
   app.get('/api/health', (req, res) => res.json({ ok: true }));
-  // TEMPORARY — the live admin password stopped matching what the owner
-  // expected and nothing in app code changed it, so this is a one-time
-  // reset back to admin/admin. Gated by a bcrypt hash of a one-off token
-  // (only the hash is committed — it can't be reversed back into the
-  // token, so nothing secret ever touches the repo). To be removed
-  // immediately after use.
-  const RESET_TOKEN_HASH = '$2a$10$r3Rn0A/tXxjev8DfwEU2HOp.yBC4rfCXf7lJwl4jMhtp7Qgq11wVC';
-  app.post('/api/_debug-reset-admin', (req, res) => {
-    const supplied = req.get('X-Reset-Token') ?? '';
-    if (!supplied || !verifyPassword(supplied, RESET_TOKEN_HASH)) {
-      return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Not found.' } });
-    }
-    if (!db) return res.status(500).json({ error: { code: 'NO_DB', message: 'No database.' } });
-    const hash = hashPassword('admin');
-    db.prepare('UPDATE admin_users SET username = ?, password_hash = ? WHERE id = (SELECT MIN(id) FROM admin_users)').run(
-      'admin',
-      hash
-    );
-    res.json({ ok: true });
-  });
 
   app.use(
     session({
