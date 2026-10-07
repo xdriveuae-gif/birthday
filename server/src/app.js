@@ -35,6 +35,15 @@ export function createApp({ db, uploadsDir, sessionSecret, clientDistDir, isProd
   app.use(express.urlencoded({ extended: false }));
 
   app.get('/api/health', (req, res) => res.json({ ok: true }));
+  // TEMPORARY — diagnosing where the live gifts/participants data vanished
+  // from. Reports storage paths only, nothing sensitive. Remove after use.
+  app.get('/api/_debug-storage', (req, res) => {
+    res.json({
+      dbPath: process.env.DB_PATH ?? null,
+      uploadDir: process.env.UPLOAD_DIR ?? null,
+      cwd: process.cwd(),
+    });
+  });
 
   app.use(
     session({
